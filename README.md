@@ -3,6 +3,7 @@
 ## Examples on how to use:
 
 1. Webcam
+`main.py`
 ```py main.py```
 
 2. Images
