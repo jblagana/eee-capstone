@@ -1,9 +1,8 @@
 # Home Surveillance using Computer Vision
 
-## Examples on how to use:
+## Examples of how to use:
 
 1. Webcam
-`main.py`
 ```py main.py```
 
 2. Images
