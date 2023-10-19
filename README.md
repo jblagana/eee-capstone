@@ -14,5 +14,4 @@ Models available:
 2. Caffe (caffe) - face detection
 
 *uses caffe by default
-
 *replace `model`variable with `tf` to use the TensorFlow model
