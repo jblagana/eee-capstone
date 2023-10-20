@@ -10,8 +10,8 @@
 ```py main.py videos/kitten.mp4```
 
 Models available:
-1. TensorFlow (tf) - object detection
-2. Caffe (caffe) - face detection
+1. TensorFlow - object detection
+2. Caffe - face detection
 
 *uses caffe by default
 
