@@ -1,4 +1,4 @@
-# Samrt Home Surveillance using Computer Vision
+# Smart Home Surveillance using Computer Vision
 
 ## Examples of how to use:
 
