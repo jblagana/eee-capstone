@@ -15,4 +15,4 @@ Models available:
 
 *uses caffe by default
 
-*replace `model` variable inside `main.py` with `tf` to use the TensorFlow model
+*to use the TensorFlow model, replace the `model` variable with `tf` inside the `main.py` file
