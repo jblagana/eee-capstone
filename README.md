@@ -5,9 +5,9 @@
 1. Webcam
 ```py main.py```
 2. Images
-```py main.py images\dog.jpg```
+```py main.py images/dog.jpg```
 3. Videos
-```py main.py videos\cat.mp4```
+```py main.py videos/cat.mp4```
 
 Models available:
 1. TensorFlow (tf) - object detection
