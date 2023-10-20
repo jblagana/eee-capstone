@@ -1,4 +1,4 @@
-# Home Surveillance using Computer Vision
+# Samrt Home Surveillance using Computer Vision
 
 ## Examples of how to use:
 
