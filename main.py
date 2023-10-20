@@ -171,7 +171,7 @@ if __name__ == "__main__":
 
     model = 'caffe' # tf, caffe
 
-    # Sources
+    # File Sources
     if isinstance(s, int):
         display_video(s) 
     elif s.endswith('.mp4'):
