@@ -90,7 +90,7 @@ def image_processing(frame, net):
         confidence = scores[i]
 
         # Bounding box
-        cv.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0),thickness=1)
+        cv.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0),thickness=2)
 
         FONT = cv.FONT_HERSHEY_SIMPLEX
         confidence = confidence*100
@@ -98,7 +98,7 @@ def image_processing(frame, net):
         if MODEL_TYPE == 'tf':
             label = f"{labels[classId]}{confidence: .2f}%"
         elif MODEL_TYPE == 'caffe':
-            label = f"Person{confidence: .2f}%"
+            label = f"Face{confidence: .2f}%"
 
         display_text(frame, label, x, y)
 
@@ -122,7 +122,7 @@ def display_text(img, text, x, y):
 if __name__ == "__main__":
 
     # Define constants
-    MODEL_TYPE = 'caffe'
+    MODEL_TYPE = 'tf'
     WIN_NAME = "Detections"
     CONF_THRESHOLD = 0.5
     # MEAN = (104, 117, 123) # lower accuracy but faster
