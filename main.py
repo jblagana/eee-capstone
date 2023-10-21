@@ -1,157 +1,135 @@
-#%%
 import os
-import sys
 import cv2 as cv
+import sys
 
+# Function to load the model based on the MODEL_TYPE
 def load_model():
-    global model
-
-    if model == 'tf':
-        classFile  = r"models/tf/coco_class_labels.txt"
-        with open(classFile) as fp:
+    if MODEL_TYPE == 'tf':
+        class_file = os.path.join("models", MODEL_TYPE, "coco_class_labels.txt")
+        with open(class_file) as fp:
             global labels
             labels = fp.read().split("\n")
 
-        modelFile  = os.path.join("models", "tf", "frozen_inference_graph.pb")
-        configFile = os.path.join("models", "tf", "ssd_mobilenet_v2_coco_2018_03_29.pbtxt")
-        
-        # Read the Tensorflow network
-        net = cv.dnn.readNetFromTensorflow(modelFile, configFile)
-
-    elif model == 'caffe':
+        net = cv.dnn.readNetFromTensorflow(
+            os.path.join("models", MODEL_TYPE, "frozen_inference_graph.pb"),
+            os.path.join("models", MODEL_TYPE, "ssd_mobilenet_v2_coco_2018_03_29.pbtxt"))
+    
+    elif MODEL_TYPE == 'caffe':
         net = cv.dnn.readNetFromCaffe(
-            os.path.join("models", "caffe", "deploy.prototxt"),
-            os.path.join("models", "caffe", "res10_300x300_ssd_iter_140000_fp16.caffemodel"))
+            os.path.join("models", MODEL_TYPE, "deploy.prototxt"),
+            os.path.join("models", MODEL_TYPE, "res10_300x300_ssd_iter_140000_fp16.caffemodel"))
+    else:
+        raise ValueError("Unsupported model type")
 
     return net
 
-def detect_objects(im, dim = 300):
-    global net
+# Function to detect objects
+def detect_objects(s):
     net = load_model()
-    # Create a blob from the image
-    blob = cv.dnn.blobFromImage(im, 1.0, size=(dim, dim), mean=(0, 0, 0), swapRB=False, crop=False)
+    cv.namedWindow(WIN_NAME, cv.WINDOW_NORMAL)
 
-    # Pass blob to the network
+    if isinstance(s, int):
+        source = cv.VideoCapture(s)
+        while cv.waitKey(1) != 27:
+            has_frame, frame = source.read()
+            if not has_frame:
+                break
+            frame = cv.flip(frame, 1)
+            image_processing(frame, net)
+        source.release()
+        cv.destroyWindow(WIN_NAME)
+
+    elif isinstance(s, str):
+        if s.endswith('.mp4'):
+            source = cv.VideoCapture(s)
+            while cv.waitKey(1) != 27:
+                has_frame, frame = source.read()
+                if not has_frame:
+                    break
+                image_processing(frame, net)
+            source.release()
+            cv.destroyWindow(WIN_NAME)
+
+        else:
+            img = cv.imread(s)
+            image_processing(img, net)
+            cv.waitKey(0)
+
+# Function for image processing
+def image_processing(frame, net):
+    frame_height = frame.shape[0]
+    frame_width = frame.shape[1]
+
+    # Create a 4D blob from a frame and run model
+    blob = cv.dnn.blobFromImage(frame, 1.0, size=(300,300), mean=MEAN, swapRB=False, crop=False)
     net.setInput(blob)
-
-    # Peform Prediction
-    objects = net.forward()
-    return objects
-
-
-def display_text(im, text, x, y):
-    FONTFACE = cv.FONT_HERSHEY_SIMPLEX
-    FONT_SCALE = 0.7
-    THICKNESS = 1
-    # Get text size
-    textSize = cv.getTextSize(text, FONTFACE, FONT_SCALE, THICKNESS)
-    dim = textSize[0]
-    baseline = textSize[1]
-
-    # Use text size to create a black rectangle
-    cv.rectangle(im,(x, y - dim[1] - 2*baseline),(x + dim[0], y + baseline),(0, 0, 0),cv.FILLED)
-
-    # Display text inside the rectangle
-    cv.putText(im,text,(x, y - 5),FONTFACE,FONT_SCALE,(0, 255, 255),THICKNESS,cv.LINE_AA)
-
-def display_objects(im, objects, threshold=0.25):
-    rows = im.shape[0]
-    cols = im.shape[1]
+    detections = net.forward()
 
     boxes = []
     scores = []
 
-    # For every Detected Object
-    for i in range(objects.shape[2]):
-        # Find the class and confidence
-        classId = int(objects[0, 0, i, 1])
-        score = float(objects[0, 0, i, 2])
-        # print(classId)
-        # print(score)
+    for i in range(detections.shape[2]):
+        classId = int(detections[0, 0, i, 1])
+        confidence = float(detections[0, 0, i, 2])
 
-        # Recover original cordinates from normalized coordinates
-        x = int(objects[0, 0, i, 3] * cols)
-        y = int(objects[0, 0, i, 4] * rows)
-        w = int(objects[0, 0, i, 5] * cols - x)
-        h = int(objects[0, 0, i, 6] * rows - y)
-
-
-        # Check if the detection is of good quality
-        if score > threshold:
+        x = int(detections[0, 0, i, 3] * frame_width)
+        y = int(detections[0, 0, i, 4] * frame_height)
+        w = int(detections[0, 0, i, 5] * frame_width - x)
+        h = int(detections[0, 0, i, 6] * frame_height - y)
+        
+        if confidence > CONF_THRESHOLD:
             boxes.append([x, y, w, h])
-            scores.append(score)
-
+            scores.append(confidence)
+        
     # Apply Non-Maximum Suppression to use only max confidence detection
-    indices = cv.dnn.NMSBoxes(boxes, scores, threshold, 0.4)
+    indices = cv.dnn.NMSBoxes(boxes, scores, CONF_THRESHOLD, 0.4)
 
-    # Display the remaining bounding boxes
     for i in indices:
-        classId = int(objects[0, 0, i, 1])
+        classId = int(detections[0, 0, i, 1])
         x, y, w, h = boxes[i]
-        score = scores[i]
+        confidence = scores[i]
 
-        if model == 'tf':
-            display_text(im, "{} {}%".format(labels[classId], round(score * 100, 2)), x, y)
-        elif model == 'caffe':
-            display_text(im, "Confidence: {}%".format(round(score * 100, 2)), x, y)
-            
-        cv.rectangle(im, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        # Bounding box
+        cv.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0),thickness=1)
+
+        FONT = cv.FONT_HERSHEY_SIMPLEX
+        confidence = confidence*100
+
+        if MODEL_TYPE == 'tf':
+            label = f"{labels[classId]}{confidence: .2f}%"
+        elif MODEL_TYPE == 'caffe':
+            label = f"Person{confidence: .2f}%"
+
+        display_text(frame, label, x, y)
 
     t, _ = net.getPerfProfile()
     label = "Inference time: %.2f ms" % (t * 1000.0 / cv.getTickFrequency())
-    display_text(im, label, 0, 30)
+    display_text(frame, label, 0, 20)
+    cv.imshow(WIN_NAME, frame)
 
-    return im
+def display_text(img, text, x, y):
+    FONTFACE = cv.FONT_HERSHEY_SIMPLEX
+    FONT_SCALE = 0.5
+    THICKNESS = 1
+    
+    # # Get text size
+    label_size, base_line = cv.getTextSize(text, FONTFACE, FONT_SCALE, THICKNESS)
 
-def display_video(s):
-    source = cv.VideoCapture(s)
-    win_name = "Camera Preview"
-    cv.namedWindow(win_name, cv.WINDOW_NORMAL)
-
-    alive = True
-
-    while alive:
-        has_frame, frame = source.read()
-        if not has_frame:
-            break
-        frame = cv.flip(frame, 1)
-
-        # Perform object detection
-        objects = detect_objects(frame)
-        img = display_objects(frame, objects)
-        cv.imshow(win_name, img)
-
-        if cv.waitKey(1) == 27:
-            alive = False
-
-    source.release()
-    cv.destroyAllWindows()
-
-def display_image(s):
-    img = cv.imread(s)
-    objects = detect_objects(img)
-    img = display_objects(img, objects)
-    cv.imshow('Detected Image', img)
-    cv.waitKey(0)
+    cv.rectangle(img,(x, y - label_size[1] - base_line),(x + label_size[0], y + base_line),(255, 255, 255),cv.FILLED)
+    cv.putText(img, text, (x, y), FONTFACE, FONT_SCALE, (0, 0, 0), THICKNESS, cv.LINE_AA)
 
 
 if __name__ == "__main__":
+
+    # Define constants
+    MODEL_TYPE = 'caffe'
+    WIN_NAME = "Detections"
+    CONF_THRESHOLD = 0.5
+    # MEAN = (104, 117, 123) # lower accuracy but faster
+    MEAN = (0, 0, 0) # higher accuracy but slower
+
     s = 0
     if len(sys.argv) > 1:
         s = sys.argv[1]
 
-    """
-    Models available:
-    1. Tensorflow (tf) - object detection
-    2. Caffe (caffe) - face detection
-    """
-
-    model = 'caffe' # tf, caffe
-
-    # File Sources
-    if isinstance(s, int):
-        display_video(s) 
-    elif s.endswith('.mp4'):
-        display_video(s)
-    elif s.endswith('.jpg'):
-        display_image(s)
+    detect_objects(s)
