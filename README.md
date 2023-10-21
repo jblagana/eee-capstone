@@ -13,6 +13,6 @@ Models available:
 1. TensorFlow - object detection
 2. Caffe - face detection
 
-*uses caffe by default
+*uses TensorFlow by default
 
-*to use the TensorFlow model, replace the `MODEL_TYPE` variable with `tf` inside the `main.py` file
+*to use the Caffe model, replace the `MODEL_TYPE` variable with `caffe` inside the `main.py` file
