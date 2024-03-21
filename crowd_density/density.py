@@ -13,16 +13,39 @@ def process_video(s):
         if isinstance(s, int):
             frame = cv.flip(frame, 1)
 
+        global segmented_area
+        img = frame
+        frame_area = img.shape[0]*img.shape[1]
         results = model(frame)
-        annotated_frame = results[0].plot()
+        # mask_coords = results[0].masks.xy
+        # for item in mask_coords:
+        #     segmented_area += compute_area(item)
+        # crowd_density = 100 * segmented_area / frame_area
+
+        # print(f"crowd density: {round(crowd_density, 2)}%")
+        segmented_area = 0
+        # return crowd_density
+
+        annotated_frame = results[0].plot(boxes=False)
         cv.imshow(WIN_NAME, annotated_frame)
     source.release()
     cv.destroyWindow(WIN_NAME)
 
-def process_image(s):
-    img = cv.imread(s)
+def process_image(frame):
+    global segmented_area
+    img = cv.imread(frame)
+    frame_area = img.shape[0]*img.shape[1]
     results = model(img)
-    annotated_frame = results[0].plot()
+    # mask_coords = results[0].masks.xy
+    # for item in mask_coords:
+    #     segmented_area += compute_area(item)
+    # crowd_density = 100 * segmented_area / frame_area
+    # return crowd_density
+    
+    # print(f"crowd density: {round(crowd_density, 2)}%")
+
+
+    annotated_frame = results[0].plot(boxes=False)
     cv.imshow(WIN_NAME, annotated_frame)
     cv.waitKey(0)
 
@@ -39,12 +62,28 @@ def detect_objects(s):
             process_image(s)
 
 
+def compute_area(coordinates):
+  
+    area = 0.0
+    n = len(coordinates)
+    for i in range(n):
+        j = (i + 1) % n
+        area += coordinates[i][0] * coordinates[j][1]
+        area -= coordinates[j][0] * coordinates[i][1]
+    area = abs(area) / 2.0
+    return area
+
+
+
 if __name__ == "__main__":
 
-    WIN_NAME = "Detections"
-    model = YOLO(os.path.join("models", "yolo", "yolov8n-seg.pt"))
+    segmented_area = 0
 
-    s = "group2.jpg"
+    WIN_NAME = "Detections"
+    model = YOLO(os.path.join("models", "yolo", "yolov8s-seg-custom.pt"))
+    # model = YOLO(r"\crowd_density\yolov8n.pt")
+
+    s = r"C:\Users\janrh\OneDrive - University of the Philippines\Acads\4TH YEAR (23-24)\2ND SEM\EE 199\eee-capstone\crowd_density\group4.mp4"
     if len(sys.argv) > 1:
         s = sys.argv[1]
 
