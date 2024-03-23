@@ -18,8 +18,27 @@ def process_video(s):
         frame_area = img.shape[0]*img.shape[1]
         results = model(frame)
 
+
+        boxes = results[0].boxes.xywh.cpu()
+        existing_boxes = []
+        for box in boxes:
+            x, y, w, h = box.tolist()
+            box_area = w * h
+            for existing_box in existing_boxes:
+                iou = calculate_iou((x, y, w, h), existing_box)
+                segmented_area += box_area * (1 - iou)  # Consider only non-overlapping area
+            existing_boxes.append((x, y, w, h))
+
+        crowd_density = 100 * segmented_area / frame_area
+
+        print(f"crowd density: {round(crowd_density, 2)}%")
+        segmented_area = 0
+
         annotated_frame = results[0].plot()
         cv.imshow(WIN_NAME, annotated_frame)
+
+        # return crowd_density
+    
     source.release()
     cv.destroyWindow(WIN_NAME)
 
@@ -44,6 +63,24 @@ def detect_objects(s):
             process_video(s)
         else:
             process_image(s)
+
+
+def calculate_iou(box1, box2):
+    # Calculate intersection area
+    x1 = max(box1[0], box2[0])
+    y1 = max(box1[1], box2[1])
+    x2 = min(box1[0] + box1[2], box2[0] + box2[2])
+    y2 = min(box1[1] + box1[3], box2[1] + box2[3])
+    intersection_area = max(0, x2 - x1) * max(0, y2 - y1)
+
+    # Calculate union area
+    box1_area = box1[2] * box1[3]
+    box2_area = box2[2] * box2[3]
+    union_area = box1_area + box2_area - intersection_area
+
+    # Calculate IoU
+    iou = intersection_area / union_area
+    return iou
 
 
 

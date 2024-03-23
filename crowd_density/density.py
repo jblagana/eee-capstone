@@ -17,16 +17,16 @@ def process_video(s):
         img = frame
         frame_area = img.shape[0]*img.shape[1]
         results = model(frame)
-        # mask_coords = results[0].masks.xy
+        # mask_coords = results[0].masks
         # for item in mask_coords:
         #     segmented_area += compute_area(item)
         # crowd_density = 100 * segmented_area / frame_area
 
         # print(f"crowd density: {round(crowd_density, 2)}%")
-        segmented_area = 0
+        # segmented_area = 0
         # return crowd_density
 
-        annotated_frame = results[0].plot(boxes=False)
+        annotated_frame = results[0].plot()
         cv.imshow(WIN_NAME, annotated_frame)
     source.release()
     cv.destroyWindow(WIN_NAME)
@@ -80,10 +80,10 @@ if __name__ == "__main__":
     segmented_area = 0
 
     WIN_NAME = "Detections"
-    model = YOLO(os.path.join("models", "yolo", "yolov8s-seg-custom.pt"))
+    model = YOLO(os.path.join("models", "yolo", "yolov8n-seg.pt"))
     # model = YOLO(r"\crowd_density\yolov8n.pt")
 
-    s = r"C:\Users\janrh\OneDrive - University of the Philippines\Acads\4TH YEAR (23-24)\2ND SEM\EE 199\eee-capstone\crowd_density\group4.mp4"
+    s = r"items\robme.mp4"
     if len(sys.argv) > 1:
         s = sys.argv[1]
 
