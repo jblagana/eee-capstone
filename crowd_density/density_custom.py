@@ -90,7 +90,7 @@ if __name__ == "__main__":
     segmented_area = 0
 
     WIN_NAME = "Detections"
-    model = YOLO(r"models\yolo\best_n.pt")
+    model = YOLO(r"models\yolo\best_0and1.pt")
 
     s = r"items\robme.mp4"
     if len(sys.argv) > 1:
