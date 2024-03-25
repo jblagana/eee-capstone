@@ -2,12 +2,12 @@
 
 ## How to use crowd density module?
 
-```pip install -r requirements.txt```
-```cd crowd_density```
-```py density_custom.py```
+```pip install -r requirements.txt```  
+```cd crowd_density```  
+```py density_custom.py```  
 
-Video files are available at ```crowd_density/items```
-Models are available at ```crowd_density/models/yolo```
+Video files are available at ```crowd_density/items```  
+Models are available at ```crowd_density/models/yolo```  
 
 ## How to use yolo training notebook?
 
