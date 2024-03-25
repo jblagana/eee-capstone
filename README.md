@@ -15,3 +15,6 @@ Models are available at ```crowd_density/models/yolo```
 ```python3.10 -m venv env3.10```
 2. Open the notebook ```yolo_training.ipynb``` with the env3.10 kernel.
 3. Run the notebook. All dependencies are there and must be installed automatically.
+
+
+<!-- Add new line by adding 2 spaces. i.e. \n = 2spaces -->
