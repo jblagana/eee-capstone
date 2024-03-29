@@ -37,9 +37,9 @@ def detect_concealment(frame):
 if __name__ == "__main__":
 
     # Define video and model paths
-    video_path = "videos/test.mp4"
+    video_path = "concealment/videos/test.mp4"
     video_path_out = '{}_out.mp4'.format(video_path)
-    model_path = "model/best_n.pt"
+    model_path = "concealment/model/best_n.pt"
     
     # Initialize video capture and output writer
     cap = cv2.VideoCapture(video_path)                      
