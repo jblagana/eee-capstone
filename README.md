@@ -1,22 +1,20 @@
-# Smart Home Surveillance using Computer Vision
+# Robbery Prediction
 
-## Examples of how to use (YOLO model):
+## How to use crowd density module?
 
-1. Webcam
-```py main.py```
-2. Images
-```py main.py images/dog.jpg```
-3. Videos
-```py main.py videos/kitten.mp4```
+```pip install -r requirements.txt```  
+```cd crowd_density```  
+```py density_custom.py```  
 
-## Supplementary
+Video files are available at ```crowd_density/items```  
+Models are available at ```crowd_density/models/yolo```  
 
-To use models other than YOLO, use the `nonyolo.py` instead of `main.py`. The format is the same.
+## How to use yolo training notebook?
 
-Models available:
-1. TensorFlow - object detection
-2. Caffe - face detection
+1. Create a virtual environment (to avoid version conflicts).
+```python3.10 -m venv env3.10```
+2. Open the notebook ```yolo_training.ipynb``` with the env3.10 kernel.
+3. Run the notebook. All dependencies are there and must be installed automatically.
 
-*uses TensorFlow by default
 
-*to use the Caffe model, replace the `MODEL_TYPE` variable with `caffe` inside the `nonyolo.py` file
+<!-- Add new line by adding 2 spaces. i.e. \n = 2spaces -->
