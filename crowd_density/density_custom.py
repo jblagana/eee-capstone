@@ -92,7 +92,7 @@ if __name__ == "__main__":
     WIN_NAME = "Detections"
     model = YOLO(r"models\yolo\best_finalCustom.pt")
 
-    s = r"items\anomaly_cam_20.mp4"
+    s = r"items\yolo_ucf_null.jpg"
     if len(sys.argv) > 1:
         s = sys.argv[1]
 

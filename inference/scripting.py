@@ -57,8 +57,11 @@ def vid_processing(folder_path, csv_filename, field_names):
                 crowd_density = random.randint(0, 100)
                 crowd_count = random.randint(0, 100)
                 loitering = random.randint(0, 100)
-                concealment = [random.randint(0, 100), random.randint(0, 100), random.randint(0, 100)]
-                rbp = random.randint(0, 100)
+                low_conc = random.randint(0, 100)
+                med_conc = random.randint(0, 100)
+                high_conc = random.randint(0, 100)
+                # concealment = [random.randint(0, 100), random.randint(0, 100), random.randint(0, 100)]
+                rbp = random.randint(0, 1)
 
                 #Appending data to the CSV file
                 writer.writerow({
@@ -67,7 +70,9 @@ def vid_processing(folder_path, csv_filename, field_names):
                     "crowd_density": crowd_density,
                     "crowd_count": crowd_count,
                     "loitering": loitering,
-                    "concealment": concealment,
+                    "low_concealment": low_conc,
+                    "med_concealment": med_conc,
+                    "high_concealment": high_conc,
                     "rbp": rbp
                 })
 
@@ -77,7 +82,7 @@ def vid_processing(folder_path, csv_filename, field_names):
 if __name__ == "__main__":
     #Declaring CSV filename and header fields
     csv_filename = "output-test.csv"
-    field_names = ["video_id","frame_num","crowd_density","crowd_count","loitering","concealment","rbp"]
+    field_names = ["video_id","frame_num","crowd_density","crowd_count","loitering","low_concealment","med_concealment","high_concealment","rbp"]
 
     #Declaring folder path of the videos to be processed
     folder_path = "data"
