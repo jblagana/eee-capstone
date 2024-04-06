@@ -5,8 +5,8 @@ import numpy as np
 def updated_concealment(class_list):
     concealment_counts = [0, 0, 0, 0]                               # Initialize all class counts to 0
     for class_id in class_list:
-        class_id = int(class_id)
-        concealment_counts[class_id -1] += 1
+        #class_id = int(class_id)
+        concealment_counts[int(class_id)] += 1
     return np.array(concealment_counts)
 
 def detect_concealment(frame):
