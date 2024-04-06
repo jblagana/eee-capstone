@@ -79,11 +79,12 @@ def vid_processing(folder_path, csv_filename, field_names):
             if not cap.isOpened():
                 print(f"Error: Could not open {video_file}")
                 continue
-            else:
-                #print("Vid [{}] successfully opened".format(video_file))
-                #Initialize progress bar
-                total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                progress_bar = tqdm(total=total_frames, desc=f"Video {video_file} ")
+            
+            #print("Vid [{}] successfully opened".format(video_file))
+
+            #Initialize progress bar
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            progress_bar = tqdm(total=total_frames, desc=f"Video {video_file} ")
             
             #Processing each frame
             frame_num = 0 
