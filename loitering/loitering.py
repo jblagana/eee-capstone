@@ -47,7 +47,7 @@ def detect_loitering(boxes, track_ids, clss, names, object_id_list, age_id, dwel
                         age_id[object_id] += 1
                 
     #Final loitering module output: compute variance of dwell times
-    std_val = np.std(list(dwell_time.values())) if dwell_time else 0
+    std_val = np.std(list(dwell_time.values())) if dwell_time else -1
     #print("Dwell time list: ", list(dwell_time.values()), "\nStandard Deviation: ", std_val)
 
     return object_id_list, age_id, dwell_time, std_val
