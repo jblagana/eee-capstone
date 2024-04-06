@@ -65,7 +65,7 @@ def vid_processing(folder_path, csv_filename, field_names):
 
                 #Appending data to the CSV file
                 writer.writerow({
-                    "video_id": video_id,
+                    "video_id": video_file,
                     "frame_num": frame_num,
                     "crowd_density": crowd_density,
                     "crowd_count": crowd_count,
@@ -85,7 +85,7 @@ if __name__ == "__main__":
     field_names = ["video_id","frame_num","crowd_density","crowd_count","loitering","low_concealment","med_concealment","high_concealment","rbp"]
 
     #Declaring folder path of the videos to be processed
-    folder_path = "data"
+    folder_path = r"C:\Users\janrh\OneDrive - University of the Philippines\Acads\4TH YEAR (23-24)\2ND SEM\EE 199\DATASETS\anomaly_trimmed"
 
     create_csv(csv_filename, field_names)
     vid_processing(folder_path, csv_filename, field_names)
