@@ -58,7 +58,7 @@ def vid_processing(folder_path, csv_filename, field_names):
     class_names = ["high","low","med","none"]
 
     
-    #-----LISTING ALL VIDEO FILES IN THE folder_path DIRECTORY#-----#
+    #-----LISTING ALL VIDEO FILES IN THE folder_path DIRECTORY-----#
     video_files = os.listdir(folder_path)
 
     #---------------VIDEO PROCESSING---------------#
@@ -109,7 +109,7 @@ def vid_processing(folder_path, csv_filename, field_names):
                 #Loitering module
                 object_id_list, age_id, dwell_time, loitering = detect_loitering(boxes, track_ids, clss, names, object_id_list, age_id, dwell_time, max_age)
 
-                #Concealment modules
+                #Concealment module
                 concealment_counts = updated_concealment(clss)
 
                 rbp = random.randint(0, 1)
