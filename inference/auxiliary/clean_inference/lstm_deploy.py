@@ -9,18 +9,6 @@ app = Flask(__name__)
 
 scaler = StandardScaler()
 
-# -------------------------------------
-# Define LSTM model
-# class LSTMModel(nn.Module):
-#     def __init__(self, input_size, hidden_size, output_size):
-#         super(LSTMModel, self).__init__()
-#         self.lstm = nn.LSTM(input_size, hidden_size, batch_first=True)
-#         self.fc = nn.Linear(hidden_size, output_size)
-
-#     def forward(self, x):
-#         out, _ = self.lstm(x)
-#         out = self.fc(out[:, -1, :])
-#         return out
 
 class LSTMModel(nn.Module):
     def __init__(self, input_size, hidden_size):
@@ -40,23 +28,6 @@ class LSTMModel(nn.Module):
         out = self.fc3(out)
         out = self.fc4(out)
         return out
-
-
-    
-def preprocess_input(new_data):
-    # Assuming new_data is a numpy array with shape (batch_size, sequence_length, n_features)
-    new_data_scaled = scaler.transform(new_data.reshape(-1, n_features)).reshape(-1, sequence_length, n_features)
-    return torch.tensor(new_data_scaled, dtype=torch.float32)
-
-# Function to make predictions
-def predict_with_model(new_data):
-    with torch.no_grad():
-        new_data_tensor = preprocess_input(new_data)
-        test_outputs = model(new_data_tensor)
-        predicted_labels = (test_outputs >= 0.5).squeeze().cpu().numpy()
-    return predicted_labels
-    
-#----------------------------------------
 
 input_size = 3
 hidden_size = 64
