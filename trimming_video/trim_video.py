@@ -4,11 +4,21 @@ import os
 from moviepy.video.io.VideoFileClip import VideoFileClip
 
 def trim_video(input_path, output_path, duration):
-    clip = VideoFileClip(input_path)
-    trimmed_vid = clip.subclip(0, duration)
-    trimmed_vid.write_videofile(output_path)
-    clip.close()
-    trimmed_vid.close()
+    vid = VideoFileClip(input_path)
+    vid_duration = vid.duration
+    
+    if vid_duration <= duration:
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        with open(input_path, 'rb') as fsrc, open(output_path, 'wb') as fdst:
+            fdst.write(fsrc.read())
+        print("Vid duration ({}s) <= {}s. Copied file successfully.".format(vid_duration, duration))
+    else: 
+        trimmed_vid = vid.subclip(0, duration)
+        trimmed_vid.write_videofile(output_path)
+        vid.close()
+        trimmed_vid.close()
+
+    vid.close()
     print("--------------------")
 
 if __name__ == "__main__":
