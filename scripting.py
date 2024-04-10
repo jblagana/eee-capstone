@@ -146,11 +146,11 @@ def vid_processing(folder_path, csv_filename, field_names):
         
 if __name__ == "__main__":
     #Declaring CSV filename and header fields
-    csv_filename = "output.csv"
+    csv_filename = "output_50_50.csv"
     field_names = ["video_id","frame_num","crowd_density","loitering","no_concealment","low_concealment","med_concealment","high_concealment","rbp"]
 
     #Declaring folder path of the videos to be processed
-    folder_path = r"C:\Users\janrh\OneDrive - University of the Philippines\Acads\4TH YEAR (23-24)\2ND SEM\EE 199\DATASETS\inference 20-80\merged"
+    folder_path = r"C:\Users\janrh\OneDrive - University of the Philippines\Acads\4TH YEAR (23-24)\2ND SEM\EE 199\DATASETS\inference 50-50"
 
     create_csv(csv_filename, field_names)
     vid_processing(folder_path, csv_filename, field_names)
