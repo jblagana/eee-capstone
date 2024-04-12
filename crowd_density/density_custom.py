@@ -121,9 +121,9 @@ if __name__ == "__main__":
     segmented_area = 0
 
     WIN_NAME = "Detections"
-    model = YOLO(r"models\yolo\best_finalCustom.pt")
+    model = YOLO(r"models\yolo\best_custom_torch1.11.pt")
 
-    s = r"items\yolo_cam_30.mp4"
+    s = r"items\robme.mp4"
     if len(sys.argv) > 1:
         s = sys.argv[1]
 
