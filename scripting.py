@@ -93,7 +93,7 @@ def vid_processing(folder_path, csv_filename, field_names):
                 frame_num += 1
 
                 # Perform detection & tracking on frame
-                results = model.track(frame, persist=True, conf=0, verbose=False, tracker="loitering/custom-bytetrack.yaml")
+                results = model.track(frame, persist=True, conf=0.481, verbose=False, tracker="loitering/custom-bytetrack.yaml")
                 if results[0].boxes.id is not None:
                     boxes = results[0].boxes.xywh.cpu() 
                     track_ids = results[0].boxes.id.int().cpu().tolist()
