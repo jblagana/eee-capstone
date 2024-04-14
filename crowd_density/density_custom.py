@@ -44,7 +44,7 @@ def process_video(s):
         global segmented_area
         img = frame
         frame_area = img.shape[0]*img.shape[1]
-        results = model(frame)
+        results = model(frame, conf=0.57)
 
 
         boxes = results[0].boxes.xywh.cpu()
@@ -121,7 +121,7 @@ if __name__ == "__main__":
     segmented_area = 0
 
     WIN_NAME = "Detections"
-    model = YOLO(r"models\yolo\best_custom_torch1.11.pt")
+    model = YOLO(r"models/yolo/best_py3.8_torch1.11.pt")
 
     s = r"items\robme.mp4"
     if len(sys.argv) > 1:
