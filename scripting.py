@@ -67,9 +67,9 @@ def vid_processing(folder_path, csv_filename, field_names):
 
         for video_file in video_files: 
             #Loitering parameters all throughout the video
-            object_id_list = set()
+            missed_detect = {} #Dictionary that contains all the tracked object, key:id, value: True/False (false - present in the frame)
             dwell_time = {}
-            age_id = {}
+            misses_cnt = {} #Dictionary that stores how many consecutive missed detection for the object
             max_age = 100
 
             video_path = os.path.join(folder_path, video_file)
@@ -108,7 +108,7 @@ def vid_processing(folder_path, csv_filename, field_names):
                 crowd_density, crowd_count = detect_crowd_density(boxes, frame)
 
                 #Loitering module
-                object_id_list, age_id, dwell_time, loitering = detect_loitering(boxes, track_ids, clss, names, object_id_list, age_id, dwell_time, max_age)
+                missed_detect, misses_cnt, dwell_time, loitering = detect_loitering(boxes, track_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age)
 
                 #Concealment module
                 concealment_counts = updated_concealment(clss)
