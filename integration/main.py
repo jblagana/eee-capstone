@@ -18,6 +18,11 @@ from tqdm import tqdm
 from ultralytics import YOLO
 from ultralytics.utils.plotting import Annotator, colors
 
+import torch
+import torch.nn as nn
+import numpy as np
+from sklearn.preprocessing import StandardScaler
+scaler = StandardScaler()
 
 def concealment_module(class_list):
     """
@@ -136,6 +141,42 @@ def loitering_module(frame, boxes, track_ids, clss, names, missed_detect, misses
 
     return frame, missed_detect, misses_cnt, dwell_time, std_val
 
+class LSTMModel(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super(LSTMModel, self).__init__()
+        self.lstm1 = nn.LSTM(input_size, hidden_size, batch_first=True)
+        self.fc = nn.Linear(hidden_size, 1)  # Single output neuron for binary classification
+        self.sigmoid = nn.Sigmoid()  # Sigmoid activation for binary classification
+
+    def forward(self, x):
+        out, _ = self.lstm1(x)
+        out = self.fc(out[:, -1, :])  # Use the last hidden state for prediction (summary)
+        out = self.sigmoid(out) # Apply sigmoid activation
+        return out
+
+def infer(input_sequence):
+    n_features = 6
+    sequence_length = 20
+    input_sequence = np.array(input_sequence)
+
+    # Create an instance of the LSTM model
+    model = LSTMModel(n_features, hidden_size=64)
+
+    # Load the saved weights
+    model.load_state_dict(torch.load('./integration/lstm_model_0.485.pt'))
+    model.eval()  # Set the model to evaluation mode
+
+    input_data = input_sequence[:, 2:].astype(np.float32)
+    input_data_scaled = scaler.fit_transform(input_data)
+    input_data = torch.tensor(input_data_scaled, dtype=torch.float32)
+
+    # Make predictions
+    with torch.no_grad():
+        output = model(input_data.unsqueeze(0))  # Add batch dimension
+        RBP = (output).squeeze().cpu().numpy()
+
+    return RBP
+
 def process_video(source):
     #Global variables 
     global yolo_path, bytetrack_path, max_age
@@ -225,8 +266,7 @@ def process_video(source):
                   concealment_counts[3], concealment_counts[1], concealment_counts[1], concealment_counts[0]])
         else:
             # Make predictions
-            #!!!!! TO DO: insert deployment of model
-            RBP = random.uniform(0,1)
+            RBP = infer(module_result)
             module_result.clear()
 
 
