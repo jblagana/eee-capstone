@@ -289,10 +289,12 @@ def process_video(source):
 def annotate_video(frame, RBP):
     global RBP_threshold, RBP_info
     global font, font_scale, thickness, position, x_text, y_text
+    global persist
     
     RBP_text = RBP_info.format(RBP)
 
     if RBP > RBP_threshold:
+            persist = 1
             text_color = (0, 0, 128)  # Red color
     else:
         text_color = (0, 128, 0)   # Green color
@@ -321,7 +323,30 @@ def annotate_video(frame, RBP):
 
     # Add text on top of the rectangle
     cv.putText(frame, RBP_text, (x_text, y_text), font, font_scale, text_color, thickness, cv.LINE_AA)
-    
+
+
+    # WARNING SIGN
+    if persist == 1:
+        height, width = frame.shape[0], frame.shape[1]
+
+        # Define the warning text and rectangle properties
+        warning_text = "WARNING!"
+        warning_font_scale = 3
+        warning_font_thickness = 5
+        warning_font_color = (255, 255, 255)  # White
+        bg_color = (0, 0, 255)  # Red
+
+        # Calculate the text size and position
+        w_text_size = cv.getTextSize(warning_text, font, warning_font_scale, warning_font_thickness)[0]
+        w_text_x = (width - w_text_size[0]) // 2
+        w_text_y = (height + w_text_size[1]) // 2
+
+        # Draw the red background rectangle
+        cv.rectangle(frame, (w_text_x - 10, w_text_y - 80), (w_text_x + w_text_size[0] + 10, w_text_y + w_text_size[1] - 50), bg_color, -1)
+
+        # Add the warning text
+        cv.putText(frame, warning_text, (w_text_x, w_text_y), font, warning_font_scale, warning_font_color, warning_font_thickness)
+   
     return frame
 
 if __name__ == "__main__":
@@ -353,7 +378,8 @@ if __name__ == "__main__":
 
     #---------------Display window properties---------------#
     RBP_info = ("RBP: {:.2f}")
-    RBP_threshold = 0.5
+    RBP_threshold = 0.485
+    persist = 0
     font = cv.FONT_HERSHEY_SIMPLEX
     font_scale = thickness = 0
     x_text = y_text = position = 0
