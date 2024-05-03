@@ -13,8 +13,7 @@ import random
 import sys
 import threading
 import torch
-import time
-import math
+import datetime
 
 from tqdm import tqdm
 from ultralytics import YOLO
@@ -188,7 +187,7 @@ def process_video(source):
 
     #Capture video
     cap = cv.VideoCapture(source)
-    fps_start_time = time.time()
+    fps_start_time = datetime.datetime.now()
     if not cap.isOpened():
         print(f"Error: Could not open {source}. Closing the program.")
         sys.exit()
@@ -239,12 +238,12 @@ def process_video(source):
         frame_num += 1
 
         # FPS Manual Calculation
-        fps_end_time = time.time()
-        manual_fps = math.ceil(1 / (fps_end_time - fps_start_time))
-        if frame_num == 1:
-            average_fps = manual_fps
+        fps_end_time = datetime.datetime.now()
+        time_diff = fps_end_time - fps_start_time
+        if time_diff.seconds == 0:
+            manual_fps = 0.0
         else:
-            average_fps = math.ceil((average_fps * frame_num + manual_fps) / (frame_num+1))
+            manual_fps = (frame_num / time_diff.seconds)
 
         # Perform detection & tracking on frame
         results = model.track(frame, persist=True, verbose=False, tracker=bytetrack_path)
@@ -287,8 +286,9 @@ def process_video(source):
             progress_bar.update(1)
 
         # Display FPS
-        cv.putText(frame, "Average FPS: " + str(average_fps), (10, 30), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 1)
-        
+        fps_txt = "FPS: {:.2f}".format(manual_fps)
+        cv.putText(frame, fps_txt, (5, 30), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 1)
+          
         #Video annotation
         frame = annotate_video(frame, RBP)
         cv.imshow(WIN_NAME, frame)
