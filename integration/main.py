@@ -265,10 +265,11 @@ def process_video(source):
         #Loitering module
         frame, missed_detect, misses_cnt, dwell_time, loitering = loitering_module(frame, boxes, track_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age)
         
-        """print([frame_num, 
+        """
+        print([frame_num, 
                   crowd_density, 
                   loitering, 
-                  concealment_counts[3], concealment_counts[1], concealment_counts[1], concealment_counts[0]])
+                  concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
         """
 
         if len(module_result) < 20:
@@ -379,6 +380,7 @@ if __name__ == "__main__":
     #---------------Video Source---------------#
     #Video Source
     source = "./integration/input-vid" #must be folder name, not file name
+    #source = 0
     frame_width = frame_height = fps = 0
     
 
@@ -399,8 +401,8 @@ if __name__ == "__main__":
     x_text = y_text = position = 0
     
     if isinstance(source, int):
-        process_video(source)
         WIN_NAME = "RBP: Camera Feed"
+        process_video(source)
     elif isinstance(source, str):
         #List of all video files in the folder_path
         video_files = os.listdir(source)
