@@ -168,7 +168,8 @@ def infer(input_sequence):
     model.load_state_dict(torch.load('./integration/lstm_model_0.485.pt'))
     model.eval()  # Set the model to evaluation mode
 
-    input_data = input_sequence[:, 2:].astype(np.float32)
+    #input_data = input_sequence[:, 2:].astype(np.float32)
+    input_data = input_sequence[:, 1:].astype(np.float32)   #Updated array slicing
     input_data_scaled = scaler.fit_transform(input_data)
     input_data = torch.tensor(input_data_scaled, dtype=torch.float32)
 
