@@ -19,7 +19,7 @@ from ultralytics import YOLO
 from ultralytics.utils.plotting import Annotator, colors
 
 from concealment.concealment import updated_concealment
-from crowd_density.density_custom import detect_crowd_density
+from crowd_density.crowd_density import detect_crowd_density
 from loitering.loitering import detect_loitering
 
 
