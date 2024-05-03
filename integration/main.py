@@ -7,8 +7,10 @@ TO DO:
 
 import csv
 import cv2 as cv
+import cProfile
 import numpy as np
 import os
+import pstats
 import random
 import sys
 import threading
@@ -402,7 +404,12 @@ if __name__ == "__main__":
     
     if isinstance(source, int):
         WIN_NAME = "RBP: Camera Feed"
-        process_video(source)
+        with cProfile.Profile() as pr:
+            process_video(source)
+        stats = pstats.Stats(pr)
+        stats.sort_stats(pstats.SortKey.TIME)
+        #stats.print_stats()
+        stats.dump_stats(filename="needs_profiling.prof")
     elif isinstance(source, str):
         #List of all video files in the folder_path
         video_files = os.listdir(source)
@@ -410,7 +417,14 @@ if __name__ == "__main__":
             if video_file.endswith('.mp4'): 
                 WIN_NAME = f"RBP: {video_file}"
                 video_path = os.path.join(source, video_file)
-                process_video(video_path)
+                with cProfile.Profile() as pr:
+                    process_video(video_path)
+                stats = pstats.Stats(pr)
+                stats.sort_stats(pstats.SortKey.TIME)
+                #stats.print_stats()
+                stats.dump_stats(filename="needs_profiling.prof")
             else:
                 print("Invalid source.")
                 sys.exit()
+    
+    
