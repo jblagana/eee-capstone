@@ -274,7 +274,7 @@ def process_video(source):
             module_result.append([frame_num, 
                   crowd_density, 
                   loitering, 
-                  concealment_counts[3], concealment_counts[1], concealment_counts[1], concealment_counts[0]])
+                  concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
         else:
             # Make predictions
             RBP = infer(module_result)
