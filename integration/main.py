@@ -294,10 +294,6 @@ def process_video(source, filename):
                 manual_fps = 0.0
             else:
                 manual_fps = (1 / time_diff)
-            
-        # Display FPS
-        fps_txt = "FPS: {:.0f}".format(manual_fps)
-        cv.putText(frame, fps_txt, (5, 30), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 1)
 
         #Progress bar for video
         # if isinstance(source, str):
@@ -521,9 +517,11 @@ if __name__ == "__main__":
         stats.sort_stats(pstats.SortKey.TIME)
         #stats.print_stats()
         stats.dump_stats(filename="needs_profiling.prof")
+
     elif isinstance(source, str):
         #List of all video files in the folder_path
         video_files = os.listdir(source)
+
         for video_file in video_files:
             if video_file.endswith('.mp4'): 
                 WIN_NAME = f"RBP: {video_file}"
@@ -534,6 +532,7 @@ if __name__ == "__main__":
                 stats.sort_stats(pstats.SortKey.TIME)
                 #stats.print_stats()
                 stats.dump_stats(filename="profiling.prof")
+                
             else:
                 print("Invalid source.")
                 sys.exit()
