@@ -1,8 +1,7 @@
 """"
 TO DO:
-1. Inference deployment
-2. Stop when RBP reach threshold? Print how early detected?
-3. Benchmarking
+1. Benchmarking
+2. Parsing arguments
 """
 
 import csv
@@ -17,6 +16,7 @@ import threading
 import torch
 import datetime
 
+from argparse import ArgumentParser
 from tqdm import tqdm
 from ultralytics import YOLO
 from ultralytics.utils.plotting import Annotator, colors
@@ -108,7 +108,8 @@ def loitering_module(frame, boxes, track_ids, clss, names, missed_detect, misses
         std_val: standard deviation of dwell times
 
     """
-    class_names = ["high","low","med","none"]
+    global save_vid, display_vid
+    global class_names
 
     for box, track_id, cls in zip(boxes, track_ids, clss):
         #For dwell time computation- Since ID is present in the frame:
@@ -117,12 +118,13 @@ def loitering_module(frame, boxes, track_ids, clss, names, missed_detect, misses
         misses_cnt[track_id] = 0    #Reset misses_cnt to 0
         
         #Annotate video
-        x1, y1, x2, y2 = box
-        cls_name = class_names[int(cls)]
-        xywh = [(x1 - x2 / 2), (y1 - y2 / 2), (x1 + x2 / 2), (y1 + y2 / 2)]
-        label = "#{}:{}".format(track_id, dwell_time[track_id])
-        annotator = Annotator(frame, line_width=1, example=names)
-        annotator.box_label(xywh, label=label, color=colors(int(cls), True), txt_color=(255, 255, 255))
+        if save_vid or display_vid:
+            x1, y1, x2, y2 = box
+            cls_name = class_names[int(cls)]
+            xywh = [(x1 - x2 / 2), (y1 - y2 / 2), (x1 + x2 / 2), (y1 + y2 / 2)]
+            label = "#{}:{}".format(track_id, dwell_time[track_id])
+            annotator = Annotator(frame, line_width=1, example=names)
+            annotator.box_label(xywh, label=label, color=colors(int(cls), True), txt_color=(255, 255, 255))
 
 
     # Check number of missed detections of each object
@@ -181,11 +183,12 @@ def infer(input_sequence):
 
     return RBP
 
-def process_video(source):
+def process_video(source, filename):
     #Global variables 
-    global yolo_path, bytetrack_path, max_age
+    global yolo_path, bytetrack_path, max_age, persist_yolo
     global frame_width, frame_height
     global font_scale, thickness, position, x_text, y_text, WIN_NAME
+    global display_vid, save_vid, output_path
 
     #Capture video
     cap = cv.VideoCapture(source)
@@ -194,16 +197,25 @@ def process_video(source):
         print(f"Error: Could not open {source}. Closing the program.")
         sys.exit()
     
-    #Video properties
-    frame_width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
-    frame_height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
+    #Display window/output video properties
+    if save_vid or display_vid:
+        frame_width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
+        frame_height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
+        font_scale = min(frame_width, frame_height) / 500
+        thickness = max(1, int(font_scale * 2))
+        x_text, y_text = position = (frame_width - 20, 20)
+    
+    if save_vid:
+        cap_out = cv.VideoWriter(
+            output_path + "/annotated-" + filename, 
+            cv.VideoWriter_fourcc(*'MP4V'), 
+            cap.get(cv.CAP_PROP_FPS),
+            (frame_width, frame_height)
+        )
 
-    #Display window properties
-    font_scale = min(frame_width, frame_height) / 500
-    thickness = max(1, int(font_scale * 2))
-    x_text, y_text = position = (frame_width - 20, 20)
-    cv.namedWindow(WIN_NAME, cv.WINDOW_NORMAL)
-    cv.waitKey(1)
+    if display_vid:
+        cv.namedWindow(WIN_NAME, cv.WINDOW_NORMAL)
+        cv.waitKey(1)
 
     #Frame variables
     frame_num = 0
@@ -248,7 +260,7 @@ def process_video(source):
             manual_fps = (frame_num / time_diff.seconds)
 
         # Perform detection & tracking on frame
-        results = model.track(frame, persist=True, verbose=False, tracker=bytetrack_path)
+        results = model.track(frame, persist=persist_yolo, verbose=False, tracker=bytetrack_path)
         if results[0].boxes.id is not None:
             boxes = results[0].boxes.xywh.cpu() 
             track_ids = results[0].boxes.id.int().cpu().tolist()
@@ -288,18 +300,28 @@ def process_video(source):
         if isinstance(source, str):
             progress_bar.update(1)
 
-        # Display FPS
-        fps_txt = "FPS: {:.2f}".format(manual_fps)
-        cv.putText(frame, fps_txt, (5, 30), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 1)
+        
+        if save_vid or display_vid:
+            # Display FPS (move to annotate video)
+            fps_txt = "FPS: {:.2f}".format(manual_fps)
+            cv.putText(frame, fps_txt, (5, 30), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 1)
           
-        #Video annotation
-        frame = annotate_video(frame, RBP)
-        cv.imshow(WIN_NAME, frame)
+            #Video annotation
+            frame = annotate_video(frame, RBP)
+
+            if display_vid:
+                cv.imshow(WIN_NAME, frame)
+
+            if save_vid:
+                cap_out.write(frame)
     
     if isinstance(source, str):
         progress_bar.close()   
     cap.release()
-    cv.destroyAllWindows()
+    if save_vid:
+        cap_out.release()
+    if display_vid:
+        cv.destroyAllWindows()
 
 
         
@@ -366,38 +388,119 @@ def annotate_video(frame, RBP):
    
     return frame
 
+def parse_args():
+    """Parse command line arguments."""
+
+    parser = ArgumentParser(
+        description="Robbery Prediction",
+        add_help=True
+    )
+    
+    #YOLO model arguments
+    parser.add_argument(
+        "--yolo-path",
+        type=str,
+        default="./yolo_model/best_finalCustom.pt",
+        help="Path of YOLO model."
+    )
+
+    parser.add_argument(
+        "--persist-yolo",
+        default="store_false",
+        help="Displays YOLO inference if enabled."
+    )
+
+    #Byetrack arguments
+        #bytetrack yaml file
+    parser.add_argument(
+        "--bytetrack-path",
+        type=str,
+        default = "./loitering/custom-bytetrack.yaml",
+        help="Path of Byterack configuration file."
+    )
+
+    parser.add_argument(
+        "---max-age",
+        type=int,
+        default=500,
+        help="Maximum consecutive missed detections before deleting ID."
+    )
+    
+    #Source input arguments
+    parser.add_argument(
+        "--source",
+        type=str,
+        default="./integration/input-vid",
+        help="For camera: 0. For video: [Folder path] where video/s is stored."
+    )
+
+    #User settings
+        #Output video destination
+        #Display window
+        #Save log file
+    parser.add_argument(
+        "--device",
+        type=str,
+        default="cuda" if torch.cuda.is_available() else "cpu",
+        help="Device to use."
+    )
+
+    parser.add_argument(
+        "--save-vid",
+        type=str,
+        default="0",
+        help="Saves annotated video if enabled.",
+    )
+
+    parser.add_argument(
+        "--display-vid",
+        action="store_true",
+        help="Displays video while processing if enabled.",
+    )
+
+    return parser.parse_args()
+
 if __name__ == "__main__":
+    args = parse_args()
+
     #---------------YOLO & ByteTrack---------------#
-    yolo_path = './yolo_model/best_finalCustom.pt'
-    class_names = ["high","low","med","none"]
+    yolo_path = args.yolo_path
+    class_names = ["high","low","med","none"] #Based on roboflow training
     try:
-        model = YOLO('yolo_model/best_finalCustom.pt')
+        model = YOLO(yolo_path)
     except:
         print("Failed to load YOLO model.")
+        sys.exit()
+    persist_yolo = args.persist_yolo
     
-    
-    bytetrack_path = "./loitering/custom-bytetrack.yaml"
-    max_age = 0
+    bytetrack_path = args.bytetrack_path
+    max_age = args.max_age
 
-    #---------------Video Source---------------#
-    #Video Source
-    source = "./integration/input-vid" #must be folder name, not file name
-    #source = 0
+    #---------------Source---------------#
+    try:
+        source = int(args.source)
+    except ValueError:
+        source = args.source  # If conversion fails, it's a string
     frame_width = frame_height = fps = 0
     
-
-    #Output file parameters
     #---------------Output Video---------------#
-    output_video_path = "out.mp4"
+    try:
+        save_vid = int(args.save_vid)
+    except ValueError:
+        save_vid = True
+        output_path = args.save_vid
+
+    #output_video_path = "out.mp4"
     #TO DO: writing output video    
     #cap_out = cv.VideoWriter(output_video_path, cv.VideoWriter_fourcc(*'MP4V'), cap.get(cv.CAP_PROP_FPS),
             #(frame.shape[1], frame.shape[0]))
 
 
     #---------------Display window properties---------------#
+    display_vid = args.display_vid
     RBP_info = ("RBP: {:.2f}")
     RBP_threshold = 0.485
-    persist = 0
+    persist = 1
     font = cv.FONT_HERSHEY_SIMPLEX
     font_scale = thickness = 0
     x_text = y_text = position = 0
@@ -418,13 +521,12 @@ if __name__ == "__main__":
                 WIN_NAME = f"RBP: {video_file}"
                 video_path = os.path.join(source, video_file)
                 with cProfile.Profile() as pr:
-                    process_video(video_path)
+                    process_video(video_path, video_file)
                 stats = pstats.Stats(pr)
                 stats.sort_stats(pstats.SortKey.TIME)
                 #stats.print_stats()
-                stats.dump_stats(filename="needs_profiling.prof")
+                stats.dump_stats(filename="profiling.prof")
             else:
                 print("Invalid source.")
                 sys.exit()
-    
     
