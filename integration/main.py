@@ -364,24 +364,29 @@ def annotate_video(frame, RBP):
     cv.putText(frame, RBP_text, (x_text, y_text), font, font_scale, text_color, thickness, cv.LINE_AA)
 
 
-    # WARNING SIGN
+      # WARNING SIGN
     if persist == 1:
-        height, width = frame.shape[0], frame.shape[1]
 
         # Define the warning text and rectangle properties
         warning_text = "WARNING!"
-        warning_font_scale = 3
-        warning_font_thickness = 5
+        warning_font_scale = font_scale*3
+        warning_font_thickness = thickness*3
         warning_font_color = (255, 255, 255)  # White
         bg_color = (0, 0, 255)  # Red
 
         # Calculate the text size and position
         w_text_size = cv.getTextSize(warning_text, font, warning_font_scale, warning_font_thickness)[0]
-        w_text_x = (width - w_text_size[0]) // 2
-        w_text_y = (height + w_text_size[1]) // 2
+        w_text_x = (frame_width - w_text_size[0]) // 2
+        w_text_y = (frame_height + w_text_size[1]) // 2
+
+        # Calculate the position and size of the rectangle
+        w_rect_x = w_text_x - 5
+        w_rect_y = w_text_y - w_text_size[1] - 5
+        w_width_rect = w_text_size[0] + 10
+        w_height_rect = w_text_size[1] + 10
 
         # Draw the red background rectangle
-        cv.rectangle(frame, (w_text_x - 10, w_text_y - 80), (w_text_x + w_text_size[0] + 10, w_text_y + w_text_size[1] - 50), bg_color, -1)
+        cv.rectangle(frame, (w_rect_x, w_rect_y), (w_rect_x + w_width_rect, w_rect_y + w_height_rect), bg_color, -1)
 
         # Add the warning text
         cv.putText(frame, warning_text, (w_text_x, w_text_y), font, warning_font_scale, warning_font_color, warning_font_thickness)
