@@ -1,5 +1,6 @@
 env
 env3.10
 env3.10_cpu
+env3.10_gpu
 env3.8
 env3.11
