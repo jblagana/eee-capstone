@@ -458,9 +458,9 @@ def parse_args():
     )
 
     parser.add_argument(
-        "--display-vid",
-        action="store_true",
-        help="Displays video while processing if enabled.",
+        "--no-display",
+        action="store_false",
+        help="Disables playing of video while processing.",
     )
 
     return parser.parse_args()
@@ -502,7 +502,7 @@ if __name__ == "__main__":
 
 
     #---------------Display window properties---------------#
-    display_vid = args.display_vid
+    display_vid = args.no_display
     RBP_info = ("RBP: {:.2f}")
     RBP_threshold = 0.485
     persist = 1
