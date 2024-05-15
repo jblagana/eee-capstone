@@ -491,13 +491,6 @@ if __name__ == "__main__":
     except ValueError:
         save_vid = True
         output_path = args.save_vid
-        
-    # Preparing Output Directory
-    if os.path.exists('output/'):
-        shutil.rmtree('output/')
-    os.makedirs('output/')
-    
-    output_video_path = "out.mp4"
 
     #---------------Display window properties---------------#
 
