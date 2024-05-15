@@ -14,8 +14,8 @@ import pycuda.autoinit
 import pycuda.driver as cuda
 import tensorrt as trt
 
-from bytetrack.byte_tracker import BYTETracker
-from yoloDet import YoloTRT
+from trt_integration.bytetrack.byte_tracker import BYTETracker
+from trt_integration.yoloDet import YoloTRT
 
 from argparse import ArgumentParser
 from tqdm import tqdm
@@ -47,7 +47,7 @@ def parse_args():
     )
     # ByteTrack Arguments
     parser.add_argument(
-        "---max-age",
+        "--max-age",
         type=int,
         default=500,
         help="Maximum consecutive missed detections before deleting ID."
@@ -209,7 +209,7 @@ def infer(input_sequence):
     model = LSTMModel(n_features, hidden_size=64)
 
     # Load the saved weights
-    model.load_state_dict(torch.load("lstm_model/lstm_model_0.485.pt"))
+    model.load_state_dict(torch.load("trt_integration/lstm_model/lstm_model_0.485.pt"))
     model.eval()  # Set the model to evaluation mode
 
     #input_data = input_sequence[:, 2:].astype(np.float32)
@@ -304,14 +304,14 @@ def process_video(source, filename):
             output.append([box[0], box[1], box[2], box[3], conf])       # x1, y1, x2, y2, conf
             boxes.append([box[0], box[1], box[2], box[3]])
             clss.append(cls)
-        output = np.array(output)
+        output = torch.tensor(output)
         boxes = torch.tensor(boxes)
         print ("output: ", output) 
         print ("boxes: ", boxes)
         print ("clss: ", clss)
         info_imgs = img_size = [frame_height, frame_width]
         print ("info_imgs", info_imgs)
-        
+    
         # Tracking
         if len(output) != 0 :
             # Call the ByteTracker.update method with the filtered detections, frame information, and image size.
@@ -319,21 +319,24 @@ def process_video(source, filename):
             print("online targets: ", online_targets) 
 
             # Extracting  information about the tracked objects
-            online_tlwhs = []
+            online_boxes = []
             online_ids = []    
 
             # Iterating through updated tracks
             for t in online_targets:
                 tlwh = t.tlwh
+                # x, y, w, h = t.tlwh
+                # xyxy = [(x-w/2), (y-h/2), (x+w/2), (y+h/2)]
+                # xyxy = [int(tlwh[0]), int(tlwh[1]), (int(tlwh[0] + tlwh[2])), int(tlwh[1] + tlwh[3])]
                 tid = t.track_id
-
-                online_tlwhs.append(tlwh)
+                online_boxes.append(tlwh)
                 online_ids.append(tid)
-                print("online tlwh: ", online_tlwhs)
+                print("online boxes: ", online_boxes)        
                 print("track ids: ", online_ids)
+        online_boxes = torch.tensor(online_boxes)
 
         #Crowd density module
-        crowd_density = crowd_density_module(online_tlwhs, frame)
+        crowd_density = crowd_density_module(online_boxes, frame)
         print("crowd density: ", crowd_density)
 
         #Concealment module
@@ -341,7 +344,7 @@ def process_video(source, filename):
         print("concealment: ", concealment_counts)
 
         #Loitering module
-        frame, missed_detect, misses_cnt, dwell_time, loitering = loitering_module(frame, online_tlwhs, online_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age)
+        frame, missed_detect, misses_cnt, dwell_time, loitering = loitering_module(frame, online_boxes, online_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age)
         print("loitering: ", loitering)
         
         if len(module_result) < 20:
@@ -451,14 +454,14 @@ if __name__ == "__main__":
 
     # Load custom plugin and engine
     if args.yolomodel == "custom":
-        PLUGIN_LIBRARY = "yolo_model/build_custom/libmyplugins.so"
-        engine_file_path = "yolo_model/build_custom/best_finalCustom.engine"    
+        PLUGIN_LIBRARY = "trt_integration/yolo_model/build_custom/libmyplugins.so"
+        engine_file_path = "trt_integration/yolo_model/build_custom/best_finalCustom.engine"    
     elif args.yolomodel == "v8n":
-        PLUGIN_LIBRARY = "yolo_model/build_yolov8n/libmyplugins.so"
-        engine_file_path = "yolo_model/build_yolov8n/yolov8n.engine"
+        PLUGIN_LIBRARY = "trt_integration/yolo_model/build_yolov8n/libmyplugins.so"
+        engine_file_path = "trt_integration/yolo_model/build_yolov8n/yolov8n.engine"
     elif args.yolomodel == "v7t":
-        PLUGIN_LIBRARY = "yolo_model/build_yolov7t/libmyplugins.so"
-        engine_file_path = "yolo_model/build_yolov7t/yolov7-tiny.engine"    
+        PLUGIN_LIBRARY = "trt_integration/yolo_model/build_yolov7t/libmyplugins.so"
+        engine_file_path = "trt_integration/yolo_model/build_yolov7t/yolov7-tiny.engine"    
 
     # Initialize YOLOv8 Detector object using a TensorRT engine file
     model = YoloTRT(library=PLUGIN_LIBRARY, engine=engine_file_path, conf=0.5, yolo_ver=args.yolomodel)
@@ -478,7 +481,7 @@ if __name__ == "__main__":
     
     #--------------- Source---------------#
     if args.input == "video":
-        source = "./videos"
+        source = "trt_integration/videos"
     else:
         source = 1
 
