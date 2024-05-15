@@ -267,16 +267,16 @@ def process_video(source, filename):
         if not thread_en:
             #-----SEQUENTIAL-----#
             #Crowd density module
-            start = time.perf_counter()
+            start = time.time()
             crowd_density = crowd_density_module(boxes, frame)
             concealment_counts = concealment_module(clss)
             frame, missed_detect, misses_cnt, dwell_time, loitering = loitering_module(frame, boxes, track_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age)
-            finish = time.perf_counter()
+            finish = time.time()
             avg_module_time += round(finish-start,2)
         else:
             #-----THREADING-----#
             with concurrent.futures.ThreadPoolExecutor() as executor:
-                start = time.perf_counter()
+                start = time.time()
                 f1 = executor.submit(loitering_module, frame, boxes, track_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age)
                 f2 = executor.submit(crowd_density_module, boxes,frame)
                 f3 = executor.submit(concealment_module, clss)
@@ -285,7 +285,7 @@ def process_video(source, filename):
                 crowd_density = f2.result()
                 concealment_counts = f3.result()
 
-                finish = time.perf_counter()
+                finish = time.time()
                 avg_module_time += round(finish-start,2)
 
         """
