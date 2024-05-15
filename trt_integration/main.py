@@ -284,10 +284,8 @@ def process_video(source, filename):
         # YOLO Inference with TensorRT
         detections, t = model.Inference(frame)
         logger.info("Detections: {}".format(detections))
-        # detections = [{'clss': 'high', 'conf': 0.68, 'box': [565.06, 192.75, 642.89, 332.05]},{'clss': 'high', 'conf': 0.68, 'box': [565.06, 192.75, 642.89, 332.05]}]
         
-        # Handle empty detection results (fix later)
-        print(detections[0]["box"])
+        # Handle empty detection results
         if len(detections[0]["box"]) == 0:
             print("No detections found!")
             continue
@@ -311,8 +309,8 @@ def process_video(source, filename):
         print ("output: ", output) 
         print ("boxes: ", boxes)
         print ("clss: ", clss)
-        info_imgs = frame.shape[:2]
-        img_size = info_imgs
+        info_imgs = img_size = [frame_height, frame_width]
+        print ("info_imgs", info_imgs)
         
         # Tracking
         if len(output) != 0 :
@@ -322,8 +320,7 @@ def process_video(source, filename):
 
             # Extracting  information about the tracked objects
             online_tlwhs = []
-            track_ids = []
-            online_scores = []     
+            online_ids = []    
 
             # Iterating through updated tracks
             for t in online_targets:
@@ -331,20 +328,22 @@ def process_video(source, filename):
                 tid = t.track_id
 
                 online_tlwhs.append(tlwh)
-                track_ids.append(tid)
+                online_ids.append(tid)
                 print("online tlwh: ", online_tlwhs)
-                print("track ids: ", track_ids)
-                online_scores.append(t.score)               
+                print("track ids: ", online_ids)
 
         #Crowd density module
-        crowd_density = crowd_density_module(boxes, frame)
-        
+        crowd_density = crowd_density_module(online_tlwhs, frame)
+        print("crowd density: ", crowd_density)
+
         #Concealment module
         concealment_counts = concealment_module(clss)
+        print("concealment: ", concealment_counts)
 
         #Loitering module
-        frame, missed_detect, misses_cnt, dwell_time, loitering = loitering_module(frame, boxes, track_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age)
-
+        frame, missed_detect, misses_cnt, dwell_time, loitering = loitering_module(frame, online_tlwhs, online_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age)
+        print("loitering: ", loitering)
+        
         if len(module_result) < 20:
             module_result.append([frame_num, 
                   crowd_density, 
