@@ -390,6 +390,7 @@ def annotate_video(frame, RBP):
         # Add the warning text
         cv.putText(frame, warning_text, (w_text_x, w_text_y), font, warning_font_scale, warning_font_color, warning_font_thickness)
    
+
     return frame
 
 def parse_args():
@@ -504,10 +505,18 @@ if __name__ == "__main__":
     display_vid = args.no_display
     RBP_info = ("RBP: {:.2f}")
     RBP_threshold = 0.485
-    persist = 1
+    persist = 0
     font = cv.FONT_HERSHEY_SIMPLEX
     font_scale = thickness = 0
     x_text = y_text = position = 0
+
+
+    profiling_folder = 'integration/profiling_folder'  # Define the profiling folder
+
+    # Create the profiling folder if it doesn't exist
+    if not os.path.exists(profiling_folder):
+        os.makedirs(profiling_folder)
+
     
     if isinstance(source, int):
         WIN_NAME = "RBP: Camera Feed"
@@ -526,14 +535,25 @@ if __name__ == "__main__":
             if video_file.endswith('.mp4'): 
                 WIN_NAME = f"RBP: {video_file}"
                 video_path = os.path.join(source, video_file)
-                with cProfile.Profile() as pr:
-                    process_video(video_path, video_file)
-                stats = pstats.Stats(pr)
-                stats.sort_stats(pstats.SortKey.TIME)
-                #stats.print_stats()
-                stats.dump_stats(filename="profiling.prof")
+                
+                try:
+                    with cProfile.Profile() as pr:
+                        process_video(video_path, video_file)
+                        persist = 0
+
+                    stats = pstats.Stats(pr)
+                    stats.sort_stats(pstats.SortKey.TIME)
+
+                    # Save the profiling stats in the profiling folder
+                    # stats.print_stats()
+                    profile_filename = os.path.join(profiling_folder, f"profiling_{video_file}.prof")
+                    stats.dump_stats(filename=profile_filename)
+
+                except Exception as e:
+                    print(f"Error processing video file {video_file}: {e}")
                 
             else:
                 print("Invalid source.")
                 sys.exit()
+        
     
