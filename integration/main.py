@@ -240,11 +240,13 @@ def process_video(source, filename):
         # progress_bar = tqdm(total=total_frames, desc=f"Video {source} ")
 
     manual_fps = 0.0 
+    fps_start_time = time.perf_counter()
+
     while cv.waitKey(1) != 27: #ESC key
+
         has_frame, frame = cap.read()
         if not has_frame:
             break
-        fps_start_time = time.time()
         
         if isinstance(source, int):
             frame = cv.flip(frame, 1)
@@ -277,23 +279,30 @@ def process_video(source, filename):
                   concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
         """
 
-        if len(module_result) < 20:
-            module_result.append([frame_num, 
-                  crowd_density, 
-                  loitering, 
-                  concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
-        else:
+        
+        module_result.append([frame_num, 
+                crowd_density, 
+                loitering, 
+                concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
+            
+        if len(module_result) == 20:
             # Make predictions
             RBP = infer(module_result)
             module_result.clear()
 
             # FPS Manual Calculation
-            fps_end_time = time.time()
+            fps_end_time = time.perf_counter()
             time_diff = fps_end_time - fps_start_time
             if time_diff == 0:
                 manual_fps = 0.0
             else:
-                manual_fps = (1 / time_diff)
+                manual_fps = (20 / time_diff)
+
+            with open(csv_file, 'a', newline='') as csvfile:
+                        csv_writer = csv.writer(csvfile)
+                        csv_writer.writerow([video_file, frame_num, manual_fps])
+
+            fps_start_time = time.perf_counter()
 
         #Progress bar for video
         # if isinstance(source, str):
@@ -510,12 +519,18 @@ if __name__ == "__main__":
     font_scale = thickness = 0
     x_text = y_text = position = 0
 
-
-    profiling_folder = 'integration/profiling_folder'  # Define the profiling folder
+    # Peformance profiling
+    profiling_folder = 'integration/profiling'  # Define the profiling folder
 
     # Create the profiling folder if it doesn't exist
     if not os.path.exists(profiling_folder):
         os.makedirs(profiling_folder)
+
+    # CSV file to log fps
+    csv_file = os.path.join(profiling_folder, 'fps_log.csv')
+    with open(csv_file, 'w', newline='') as csvfile:
+        csv_writer = csv.writer(csvfile)
+        csv_writer.writerow(['filename', 'frame_num', 'fps'])
 
     
     if isinstance(source, int):
@@ -548,6 +563,7 @@ if __name__ == "__main__":
                     # stats.print_stats()
                     profile_filename = os.path.join(profiling_folder, f"profiling_{video_file}.prof")
                     stats.dump_stats(filename=profile_filename)
+
 
                 except Exception as e:
                     print(f"Error processing video file {video_file}: {e}")
