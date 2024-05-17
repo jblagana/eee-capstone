@@ -101,7 +101,6 @@ def loitering_module(boxes, track_ids, clss, names, missed_detect, misses_cnt, d
         max_age: maximum number of consecutive missed detections used in deleting track IDs
 
     Output:
-        frame: annotated frame
         missed_detect: updated missed_detect
         misses_cnt: updated misses_cnt
         dwell_time: updated dwell_time
@@ -197,13 +196,6 @@ def process_video(source, filename):
         print(f"Error: Could not open {source}. Closing the program.")
         sys.exit()
     
-    #Display window/output video properties
-    if save_vid or display_vid:
-        frame_width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
-        frame_height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
-        font_scale = min(frame_width, frame_height) / 500
-        thickness = max(1, int(font_scale * 2))
-        x_text, y_text = position = (frame_width - 20, 20)
     
     if save_vid:
         cap_out = cv.VideoWriter(
@@ -336,7 +328,10 @@ def process_video(source, filename):
         
 def annotate_video(frame, RBP, fps):
     global RBP_threshold, RBP_info
-    global font, font_scale, thickness, position, x_text, y_text
+    global font, font_scale, thickness, position, x_text, y_text, size_text
+    global x_rect, y_rect, width_rect, height_rect
+    global warning_text, warning_font_scale, warning_font_thickness, warning_font_color, bg_color
+    global w_text_size, w_text_x, w_text_y, w_rect_x, w_rect_y, w_width_rect, w_height_rect
     global persist
 
     # Display FPS
@@ -347,58 +342,20 @@ def annotate_video(frame, RBP, fps):
     RBP_text = RBP_info.format(RBP)
 
     if RBP > RBP_threshold:
-            persist = 1
-            text_color = (0, 0, 128)  # Red color
+        persist = 1
+        text_color = (0, 0, 128)  # Red color
     else:
         text_color = (0, 128, 0)   # Green color
-        
-    size_text = cv.getTextSize(RBP_text, font, font_scale, thickness)[0]
-    
-    # Calculate the position and size of the rectangle
-    x_rect = x_text - 5
-    y_rect = y_text - size_text[1] - 5
-    width_rect = size_text[0] + 10
-    height_rect = size_text[1] + 10
-
-    # Adjust if rectangle goes out of frame
-    if x_rect + width_rect > frame.shape[1]:
-        x_rect = frame.shape[1] - width_rect
-    if y_rect < 0:
-        y_rect = 0
 
     # Draw white background rectangle
     cv.rectangle(frame, (x_rect, y_rect), (x_rect + width_rect, y_rect + height_rect), (255, 255, 255), -1)
     
-    # Adjust text position to fit inside the rectangle
-    x_text = x_rect + 5
-    y_text = y_rect + size_text[1] + 5
-
-
     # Add text on top of the rectangle
     cv.putText(frame, RBP_text, (x_text, y_text), font, font_scale, text_color, thickness, cv.LINE_AA)
 
 
       # WARNING SIGN
     if persist == 1:
-
-        # Define the warning text and rectangle properties
-        warning_text = "WARNING!"
-        warning_font_scale = font_scale*3
-        warning_font_thickness = thickness*2
-        warning_font_color = (255, 255, 255)  # White
-        bg_color = (0, 0, 255)  # Red
-
-        # Calculate the text size and position
-        w_text_size = cv.getTextSize(warning_text, font, warning_font_scale, warning_font_thickness)[0]
-        w_text_x = (frame_width - w_text_size[0]) // 2
-        w_text_y = (frame_height + w_text_size[1]) // 2
-
-        # Calculate the position and size of the rectangle
-        w_rect_x = w_text_x - 5
-        w_rect_y = w_text_y - w_text_size[1] - 5
-        w_width_rect = w_text_size[0] + 10
-        w_height_rect = w_text_size[1] + 10
-
         # Draw the red background rectangle
         cv.rectangle(frame, (w_rect_x, w_rect_y), (w_rect_x + w_width_rect, w_rect_y + w_height_rect), bg_color, -1)
 
@@ -522,10 +479,49 @@ if __name__ == "__main__":
     RBP_threshold = 0.485
     persist = 0
     font = cv.FONT_HERSHEY_SIMPLEX
-    font_scale = thickness = 0
-    x_text = y_text = position = 0
 
-    # Peformance profiling
+    frame_width = 640       #360p: 640x360 pixels
+    frame_height = 360
+    font_scale = min(frame_width, frame_height) / 500
+    thickness = max(1, int(font_scale * 2))
+    x_text, y_text = position = (frame_width - 20, 20)
+    size_text = (115, 16)
+
+    # Calculate the position and size of the rectangle
+    x_rect = x_text - 5
+    y_rect = y_text - size_text[1] - 5
+    width_rect = size_text[0] + 10
+    height_rect = size_text[1] + 10
+
+    # Adjust if rectangle goes out of frame
+    if x_rect + width_rect > frame_width:
+        x_rect = frame_width - width_rect
+    if y_rect < 0:
+        y_rect = 0
+
+    # Adjust text position to fit inside the rectangle
+    x_text = x_rect + 5
+    y_text = y_rect + size_text[1] + 5
+
+    # Define the warning text and rectangle properties
+    warning_text = "WARNING!"
+    warning_font_scale = font_scale*3
+    warning_font_thickness = thickness*2
+    warning_font_color = (255, 255, 255)  # White
+    bg_color = (0, 0, 255)  # Red
+
+    # Calculate the text size and position
+    w_text_size = cv.getTextSize(warning_text, font, warning_font_scale, warning_font_thickness)[0]
+    w_text_x = (frame_width - w_text_size[0]) // 2
+    w_text_y = (frame_height + w_text_size[1]) // 2
+
+    # Calculate the position and size of the rectangle
+    w_rect_x = w_text_x - 5
+    w_rect_y = w_text_y - w_text_size[1] - 5
+    w_width_rect = w_text_size[0] + 10
+    w_height_rect = w_text_size[1] + 10
+
+    #---------------Peformance profiling---------------#
     profiling_folder = 'integration/profiling'  # Define the profiling folder
 
     # Create the profiling folder if it doesn't exist
