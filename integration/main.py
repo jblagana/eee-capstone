@@ -328,6 +328,7 @@ def process_video(source, filename):
         
 def annotate_video(frame, RBP, fps):
     global RBP_threshold, RBP_info
+    global frame_width, frame_height
     global font, font_scale, thickness, position, x_text, y_text, size_text
     global x_rect, y_rect, width_rect, height_rect
     global warning_text, warning_font_scale, warning_font_thickness, warning_font_color, bg_color
@@ -466,6 +467,7 @@ if __name__ == "__main__":
     except ValueError:
         save_vid = True
         output_path = args.save_vid
+        os.makedirs(output_path, exist_ok=True)  # Create the output folder if it doesn't exist
 
     #output_video_path = "out.mp4"
     #TO DO: writing output video    
