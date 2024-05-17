@@ -263,7 +263,7 @@ def process_video(source, filename):
         concealment_counts = concealment_module(clss)
 
         #Loitering module
-        missed_detect, misses_cnt, dwell_time, loitering = loitering_module(frame, boxes, track_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age)
+        missed_detect, misses_cnt, dwell_time, loitering = loitering_module(boxes, track_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age)
         
         """
         print([frame_num, 
@@ -334,6 +334,8 @@ def annotate_video(frame, RBP, fps):
     global w_text_size, w_text_x, w_text_y, w_rect_x, w_rect_y, w_width_rect, w_height_rect
     global persist
 
+    frame = cv.resize(frame, (frame_width, frame_height))
+
     # Display FPS
     fps_txt = "FPS: {:.0f}".format(fps)
     cv.putText(frame, fps_txt, (5, 30), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 1)
@@ -353,16 +355,14 @@ def annotate_video(frame, RBP, fps):
     # Add text on top of the rectangle
     cv.putText(frame, RBP_text, (x_text, y_text), font, font_scale, text_color, thickness, cv.LINE_AA)
 
-
-      # WARNING SIGN
-    if persist == 1:
+    # WARNING SIGN
+    if persist:
         # Draw the red background rectangle
         cv.rectangle(frame, (w_rect_x, w_rect_y), (w_rect_x + w_width_rect, w_rect_y + w_height_rect), bg_color, -1)
 
         # Add the warning text
         cv.putText(frame, warning_text, (w_text_x, w_text_y), font, warning_font_scale, warning_font_color, warning_font_thickness)
    
-
     return frame
 
 def parse_args():
@@ -567,7 +567,7 @@ if __name__ == "__main__":
 
             # Save the profiling stats in the profiling folder
             # stats.print_stats()
-            profile_filename = os.path.join(profiling_folder, f"profiling_total.prof")
+            profile_filename = os.path.join(profiling_folder, f"profiling_total-cpu.prof")
             stats.dump_stats(filename=profile_filename)
 
         except Exception as e:
