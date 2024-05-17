@@ -278,16 +278,29 @@ def process_video(source, filename):
                   loitering, 
                   concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
         """
-
         
         module_result.append([frame_num, 
                 crowd_density, 
                 loitering, 
                 concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
+
             
         if len(module_result) == 20:
             # Make predictions
             RBP = infer(module_result)
+
+
+        if save_vid or display_vid:          
+            #Video annotation
+            frame = annotate_video(frame, RBP, fps=0)
+
+            if display_vid:
+                cv.imshow(WIN_NAME, frame)
+
+            if save_vid:
+                cap_out.write(frame)
+
+        if len(module_result) == 20:
             module_result.clear()
 
             # FPS Manual Calculation
@@ -304,24 +317,12 @@ def process_video(source, filename):
 
             fps_start_time = time.perf_counter()
 
+
         #Progress bar for video
         # if isinstance(source, str):
         #     progress_bar.update(1)
 
         
-        if save_vid or display_vid:
-            # Display FPS (move to annotate video)
-            fps_txt = "FPS: {:.0f}".format(manual_fps)
-            cv.putText(frame, fps_txt, (5, 30), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 1)
-          
-            #Video annotation
-            frame = annotate_video(frame, RBP)
-
-            if display_vid:
-                cv.imshow(WIN_NAME, frame)
-
-            if save_vid:
-                cap_out.write(frame)
     
     # if isinstance(source, str):
     #     progress_bar.close()   
@@ -331,13 +332,17 @@ def process_video(source, filename):
     if display_vid:
         cv.destroyAllWindows()
 
-
         
-def annotate_video(frame, RBP):
+def annotate_video(frame, RBP, fps):
     global RBP_threshold, RBP_info
     global font, font_scale, thickness, position, x_text, y_text
     global persist
+
+    # Display FPS
+    fps_txt = "FPS: {:.0f}".format(fps)
+    cv.putText(frame, fps_txt, (5, 30), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 1)
     
+    # Display RBP
     RBP_text = RBP_info.format(RBP)
 
     if RBP > RBP_threshold:
@@ -546,30 +551,29 @@ if __name__ == "__main__":
         #List of all video files in the folder_path
         video_files = os.listdir(source)
 
-        for video_file in video_files:
-            if video_file.endswith('.mp4'): 
-                WIN_NAME = f"RBP: {video_file}"
-                video_path = os.path.join(source, video_file)
-                
-                try:
-                    with cProfile.Profile() as pr:
+        try:
+            with cProfile.Profile() as pr:
+                for video_file in video_files:
+                    if video_file.endswith('.mp4'): 
+                        WIN_NAME = f"RBP: {video_file}"
+                        video_path = os.path.join(source, video_file)
+                        
                         process_video(video_path, video_file)
                         persist = 0
 
-                    stats = pstats.Stats(pr)
-                    stats.sort_stats(pstats.SortKey.TIME)
+                    else:
+                        print("Invalid source.")
+                        sys.exit()
 
-                    # Save the profiling stats in the profiling folder
-                    # stats.print_stats()
-                    profile_filename = os.path.join(profiling_folder, f"profiling_{video_file}.prof")
-                    stats.dump_stats(filename=profile_filename)
+            stats = pstats.Stats(pr)
+            stats.sort_stats(pstats.SortKey.TIME)
 
+            # Save the profiling stats in the profiling folder
+            # stats.print_stats()
+            profile_filename = os.path.join(profiling_folder, f"profiling_total.prof")
+            stats.dump_stats(filename=profile_filename)
 
-                except Exception as e:
-                    print(f"Error processing video file {video_file}: {e}")
-                
-            else:
-                print("Invalid source.")
-                sys.exit()
+        except Exception as e:
+            print(f"Profiling error: {e}")
         
     
