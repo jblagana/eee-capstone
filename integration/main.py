@@ -89,7 +89,7 @@ def calculate_overlap(box1, box2):
     
     return overlap
 
-def loitering_module(frame, boxes, track_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age):
+def loitering_module(boxes, track_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age):
     """
     Updates dwell time of detected objects across frames.
     Args:
@@ -118,6 +118,7 @@ def loitering_module(frame, boxes, track_ids, clss, names, missed_detect, misses
         misses_cnt[track_id] = 0    #Reset misses_cnt to 0
         
         #Annotate video
+        """
         if save_vid or display_vid:
             x1, y1, x2, y2 = box
             cls_name = class_names[int(cls)]
@@ -125,7 +126,7 @@ def loitering_module(frame, boxes, track_ids, clss, names, missed_detect, misses
             label = "#{}:{}".format(track_id, dwell_time[track_id])
             annotator = Annotator(frame, line_width=1, example=names)
             annotator.box_label(xywh, label=label, color=colors(int(cls), True), txt_color=(255, 255, 255))
-
+        """
 
     # Check number of missed detections of each object
     if missed_detect:
@@ -144,7 +145,7 @@ def loitering_module(frame, boxes, track_ids, clss, names, missed_detect, misses
     std_val = np.std(list(dwell_time.values())) if dwell_time else -1
     #print("Dwell time list: ", list(dwell_time.values()), "\nStandard Deviation: ", std_val)
 
-    return frame, missed_detect, misses_cnt, dwell_time, std_val
+    return missed_detect, misses_cnt, dwell_time, std_val
 
 class LSTMModel(nn.Module):
     def __init__(self, input_size, hidden_size):
@@ -270,7 +271,7 @@ def process_video(source, filename):
         concealment_counts = concealment_module(clss)
 
         #Loitering module
-        frame, missed_detect, misses_cnt, dwell_time, loitering = loitering_module(frame, boxes, track_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age)
+        missed_detect, misses_cnt, dwell_time, loitering = loitering_module(frame, boxes, track_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age)
         
         """
         print([frame_num, 
