@@ -209,7 +209,7 @@ def infer(input_sequence):
     model = LSTMModel(n_features, hidden_size=64)
 
     # Load the saved weights
-    model.load_state_dict(torch.load("trt_integration/lstm_model/lstm_model_0.485.pt"))
+    model.load_state_dict(torch.load("integration/lstm_model_0.485.pt"))
     model.eval()  # Set the model to evaluation mode
 
     #input_data = input_sequence[:, 2:].astype(np.float32)
@@ -286,7 +286,7 @@ def process_video(source, filename):
         logger.info("Detections: {}".format(detections))
         
         # Handle empty detection results
-        if len(detections[0]["box"]) == 0:
+        if not detections:
             print("No detections found!")
             continue
         
@@ -481,7 +481,7 @@ if __name__ == "__main__":
     
     #--------------- Source---------------#
     if args.input == "video":
-        source = "trt_integration/videos"
+        source = "integration/input-vid"
     else:
         source = 1
 
