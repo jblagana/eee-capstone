@@ -6,8 +6,8 @@ import csv
 import argparse
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Simple jtop logger")
-    parser.add_argument("--file", action="store", dest="file", default="log.csv")
+    parser = argparse.ArgumentParser(description="jtop logger")
+    parser.add_argument("--file", action="store", dest="file", default="resoure_log.csv")
     args = parser.parse_args()
 
     print("Simple jtop logger")
@@ -26,7 +26,7 @@ if __name__ == "__main__":
                 while jetson.ok():
                     stats = jetson.stats
                     writer.writerow(stats)
-                    print(f"Logged at {stats['time']}")
+                    # print(f"Logged at {stats['time']}")
 
     except JtopException as e:
         print(e)
