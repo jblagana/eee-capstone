@@ -569,7 +569,7 @@ if __name__ == "__main__":
 
             # Save the profiling stats in the profiling folder
             # stats.print_stats()
-            profile_filename = os.path.join(profiling_folder, f"profiling_total-cpu.prof")
+            profile_filename = os.path.join(profiling_folder, f"profiling_total.prof")
             stats.dump_stats(filename=profile_filename)
 
         except Exception as e:
