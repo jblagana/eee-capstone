@@ -1,43 +1,43 @@
+import os
 import psutil
 import time
-import datetime
 import csv
+import subprocess
 
-# Get the current datetime
-now = datetime.datetime.now()
+profiling_folder = "integration/profiling"
 
-# Format the datetime string to be used in the filename
-datetime_str = now.strftime("%Y%m%d_%H%M%S")
+# CSV file to log resource usage
+csv_file = os.path.join(profiling_folder, 'resource_log-notJetson.csv')
 
-# Open the log file in append mode
-# file name: log_YYYYMMDD_HHMMSS.csv
-with open(f'log_{datetime_str}.csv', 'a', newline='') as f:
-    writer = csv.writer(f)
-    writer.writerow(['Index', 'Datetime', 'CPU Usage (%)', 'Memory Usage (bytes)'])
+try:
+    with open(csv_file, 'w', newline='') as csvfile:
+        csv_writer = csv.writer(csvfile)
+        csv_writer.writerow(['Index', 'CPU', 'GPU', 'RAM'])
 
-    # Initialize the index
-    index = 0
+        index = 0
 
-    # Start the timer
-    start_time = time.time()
+        while True:
+            cpu_usage = psutil.cpu_percent()
+            memory_usage = psutil.virtual_memory().percent
 
-    while True:
-        # Get the current time
-        current_time = time.time() - start_time
+            # Get GPU usage using nvidia-smi
+            try:
+                gpu_usage_output = subprocess.check_output(['nvidia-smi', '--query-gpu=utilization.gpu', '--format=csv,noheader,nounits'])
+                gpu_usage = float(gpu_usage_output.decode('utf-8').strip())
+            except subprocess.CalledProcessError:
+                gpu_usage = 0.0  # If nvidia-smi fails, set GPU usage to 0
 
-        # Get CPU usage
-        cpu_usage = psutil.cpu_percent()
+            csv_writer.writerow([index, cpu_usage, gpu_usage, memory_usage])
 
-        # Get Memory usage
-        memory_usage = psutil.virtual_memory().used
+            index += 1
 
-        # Write the data to the CSV file
-        writer.writerow([index, datetime.datetime.now(), cpu_usage, memory_usage])
+            # Sleep for a second
+            time.sleep(1)
 
-        index += 1
+except KeyboardInterrupt:
+        print("Closed.")
 
-        # Sleep for a second
-        time.sleep(1)
+
 
 
 
