@@ -25,7 +25,7 @@ bindings = []
 
 
 class YoloTRT():
-    def __init__(self, library, engine, conf, yolo_ver):
+    def __init__(self, library, engine, conf):
         self.CONF_THRESH = conf 
         self.IOU_THRESHOLD = 0.4
         self.LEN_ALL_RESULT = 38001
@@ -33,19 +33,7 @@ class YoloTRT():
         self.POSE_NUM = 17 * 3
         self.DET_NUM = 6
         self.SEG_NUM = 32
-        self.yolo_version = yolo_ver
-        if self.yolo_version == "custom":
-            self.categories = ["high_conc","low_conc","med_conc","no_conc"]
-        else:
-            self.categories = ["person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat", "traffic light",
-                "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow",
-                "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee",
-                "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard",
-                "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple",
-                "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch",
-                "potted plant", "bed", "dining table", "toilet", "tv", "laptop", "mouse", "remote", "keyboard", "cell phone",
-                "microwave", "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear",
-                "hair drier", "toothbrush"]
+        self.categories = ["high_conc","low_conc","med_conc","no_conc"]
         
         TRT_LOGGER = trt.Logger(trt.Logger.INFO)
 
@@ -117,13 +105,8 @@ class YoloTRT():
         t2 = time.time()
         output = host_outputs[0]
         
-        if self.yolo_version == "v8n" or self.yolo_version == "custom":
-            for i in range(self.batch_size):
-                result_boxes, result_scores, result_classid = self.PostProcess(output[i * self.det_output_length: (i + 1) * self.det_output_length], origin_h, origin_w)            
-
-        elif self.yolo_version == "v5n" or self.yolo_version == "v7t":
-            for i in range(self.batch_size):
-                result_boxes, result_scores, result_classid = self.PostProcess(output[i * self.LEN_ALL_RESULT: (i + 1) * self.LEN_ALL_RESULT], origin_h, origin_w)
+        for i in range(self.batch_size):
+            result_boxes, result_scores, result_classid = self.PostProcess(output[i * self.det_output_length: (i + 1) * self.det_output_length], origin_h, origin_w)            
 
         print("boxes: ", result_boxes)
         print("scores: ", result_scores)
@@ -157,14 +140,7 @@ class YoloTRT():
         # Get the num of boxes detected
         num = int(output[0])
         # Reshape to a two dimensional ndarray
-        if self.yolo_version == "v5n":
-            pred = np.reshape(output[1:], (-1, self.LEN_ONE_RESULT))[:num, :]
-            pred = pred[:, :6]
-        elif self.yolo_version == "v7t":
-            pred = np.reshape(output[1:], (-1, 6))[:num, :]
-        elif self.yolo_version == "v8n" or self.yolo_version == "custom":
-            # pred = np.reshape(output[1:], (-1, self.LEN_ONE_RESULT))[:num, :]
-            pred = np.reshape(output[1:], (-1, num_values_per_detection))[:num, :]
+        pred = np.reshape(output[1:], (-1, num_values_per_detection))[:num, :]
         # Do nms
         boxes = self.NonMaxSuppression(pred, origin_h, origin_w, conf_thres=self.CONF_THRESH, nms_thres=self.IOU_THRESHOLD)
         result_boxes = boxes[:, :4] if len(boxes) else np.array([])
@@ -223,32 +199,18 @@ class YoloTRT():
         y = np.zeros_like(x)
         r_w = self.input_w / origin_w
         r_h = self.input_h / origin_h
-        if self.yolo_version == "v8n" or self.yolo_version == "custom":        
-            if r_h > r_w:
-                y[:, 0] = x[:, 0]
-                y[:, 2] = x[:, 2]
-                y[:, 1] = x[:, 1] - (self.input_h - r_w * origin_h) / 2
-                y[:, 3] = x[:, 3] - (self.input_h - r_w * origin_h) / 2
-                y /= r_w
-            else:
-                y[:, 0] = x[:, 0] - (self.input_w - r_h * origin_w) / 2
-                y[:, 2] = x[:, 2] - (self.input_w - r_h * origin_w) / 2
-                y[:, 1] = x[:, 1]
-                y[:, 3] = x[:, 3]
-                y /= r_h
-        elif self.yolo_version == "v5n" or self.yolo_version == "v7t":
-            if r_h > r_w:
-                y[:, 0] = x[:, 0] - x[:, 2] / 2
-                y[:, 2] = x[:, 0] + x[:, 2] / 2
-                y[:, 1] = x[:, 1] - x[:, 3] / 2 - (self.input_h - r_w * origin_h) / 2
-                y[:, 3] = x[:, 1] + x[:, 3] / 2 - (self.input_h - r_w * origin_h) / 2
-                y /= r_w
-            else:
-                y[:, 0] = x[:, 0] - x[:, 2] / 2 - (self.input_w - r_h * origin_w) / 2
-                y[:, 2] = x[:, 0] + x[:, 2] / 2 - (self.input_w - r_h * origin_w) / 2
-                y[:, 1] = x[:, 1] - x[:, 3] / 2
-                y[:, 3] = x[:, 1] + x[:, 3] / 2
-                y /= r_h
+        if r_h > r_w:
+            y[:, 0] = x[:, 0]
+            y[:, 2] = x[:, 2]
+            y[:, 1] = x[:, 1] - (self.input_h - r_w * origin_h) / 2
+            y[:, 3] = x[:, 3] - (self.input_h - r_w * origin_h) / 2
+            y /= r_w
+        else:
+            y[:, 0] = x[:, 0] - (self.input_w - r_h * origin_w) / 2
+            y[:, 2] = x[:, 2] - (self.input_w - r_h * origin_w) / 2
+            y[:, 1] = x[:, 1]
+            y[:, 3] = x[:, 3]
+            y /= r_h
         return y
     
     def bbox_iou(self, box1, box2, x1y1x2y2=True):
