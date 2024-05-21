@@ -1,12 +1,13 @@
 import sys
 import os
 import cv2 as cv
+import csv
 import cProfile
 import pstats
 import argparse
 import shutil
 import random
-from time import time
+import time
 from pathlib import Path
 from loguru import logger
 
@@ -37,13 +38,7 @@ def parse_args():
     parser.add_argument(
         "--input",
         default="video",
-        help="Input type: video or webcam"
-    )
-    # YOLO model arguments
-    parser.add_argument(
-        "--yolomodel",
-        default="custom",
-        help="YOLO model: custom, v8n, v7t, v5n"
+        help="Input type: video or cam"
     )
     # ByteTrack Arguments
     parser.add_argument(
@@ -52,13 +47,6 @@ def parse_args():
         default=500,
         help="Maximum consecutive missed detections before deleting ID."
     )    
-    # Save log file
-    parser.add_argument(
-        "--save-vid",
-        type=str,
-        default="0",
-        help="Saves annotated video if enabled.",
-    )
     # Display window
     parser.add_argument(
         "--no-display",
@@ -149,7 +137,7 @@ def loitering_module(frame, boxes, track_ids, clss, names, missed_detect, misses
         std_val: standard deviation of dwell times
 
     """
-    global save_vid, display_vid
+    global display_vid
     global class_names
 
     for box, track_id, cls in zip(boxes, track_ids, clss):
@@ -159,13 +147,12 @@ def loitering_module(frame, boxes, track_ids, clss, names, missed_detect, misses
         misses_cnt[track_id] = 0    #Reset misses_cnt to 0
         
         #Annotate video
-        if save_vid or display_vid:
-            x1, y1, x2, y2 = box
-            cls_name = class_names[int(cls)]
-            xywh = [(x1 - x2 / 2), (y1 - y2 / 2), (x1 + x2 / 2), (y1 + y2 / 2)]
-            label = "#{}:{}".format(track_id, dwell_time[track_id])
-            annotator = Annotator(frame, line_width=1, example=names)
-            annotator.box_label(xywh, label=label, color=colors(int(cls), True), txt_color=(255, 255, 255))
+        # x1, y1, x2, y2 = box
+        # cls_name = class_names[int(cls)]
+        # xywh = [(x1 - x2 / 2), (y1 - y2 / 2), (x1 + x2 / 2), (y1 + y2 / 2)]
+        # label = "#{}:{}".format(track_id, dwell_time[track_id])
+        # annotator = Annotator(frame, line_width=1, example=names)
+        # annotator.box_label(xywh, label=label, color=colors(int(cls), True), txt_color=(255, 255, 255))
 
 
     # Check number of missed detections of each object
@@ -224,53 +211,77 @@ def infer(input_sequence):
 
     return RBP
 
-def process_video(source, filename):
+def gstreamer_pipeline(
+    sensor_id=0,
+    capture_width=1920,
+    capture_height=1080,
+    display_width=960,
+    display_height=540,
+    framerate=30,
+    flip_method=0,
+):
+    return (
+        "nvarguscamerasrc sensor-id=%d ! "
+        "video/x-raw(memory:NVMM), width=(int)%d, height=(int)%d, framerate=(fraction)%d/1 ! "
+        "nvvidconv flip-method=%d ! "
+        "video/x-raw, width=(int)%d, height=(int)%d, format=(string)BGRx ! "
+        "videoconvert ! "
+        "video/x-raw, format=(string)BGR ! appsink"
+        % (
+            sensor_id,
+            capture_width,
+            capture_height,
+            framerate,
+            flip_method,
+            display_width,
+            display_height,
+        )
+    )
+
+
+def process_video(source):
     """Performs real-time object detection and tracking on a video."""
 
     # Global variables 
     global model, tracker, max_age
     global frame_width, frame_height
     global font_scale, thickness, position, x_text, y_text, WIN_NAME
-    global display_vid, save_vid, output_path
+    global display_vid
     
     # Capture video
-    cap = cv.VideoCapture(source)
+    if args.input == 'video':    
+        cap = cv.VideoCapture(source)
+    else:
+        cap = cv.VideoCapture(gstreamer_pipeline(flip_method=0), cv.CAP_GSTREAMER)
+
     if not cap.isOpened():
         print(f"Error: Could not open {source}. Closing the program.")
         sys.exit()    
         
-    #Display window/output video properties
-    if save_vid or display_vid:
-        frame_width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
-        frame_height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
-        font_scale = min(frame_width, frame_height) / 500
-        thickness = max(1, int(font_scale * 2))
-        x_text, y_text = position = (frame_width - 20, 20)
-    
-    if save_vid:
-        cap_out = cv.VideoWriter(
-            output_path + "/annotated-" + filename, 
-            cv.VideoWriter_fourcc(*'MP4V'), 
-            cap.get(cv.CAP_PROP_FPS),
-            (frame_width, frame_height)
-        )
-
-    if display_vid:
-        cv.namedWindow(WIN_NAME, cv.WINDOW_NORMAL)
-        cv.waitKey(1)
+    #Display window properties
+    frame_width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
+    font_scale = min(frame_width, frame_height) / 500
+    thickness = max(1, int(font_scale * 2))
+    x_text, y_text = position = (frame_width - 20, 20)
+    cv.namedWindow(WIN_NAME, cv.WINDOW_NORMAL)
+    cv.waitKey(1)
 
     #Frame variables
     frame_num = 0
 
     # #Loitering variables
-    missed_detect = {} #Dictionary that contains all the tracked object, key:id, value: True/False (false - present in the frame)
+    missed_detect = {} # Dictionary that contains all the tracked object, key:id, value: True/False (false - present in the frame)
     dwell_time = {}
-    misses_cnt = {} #Dictionary that stores how many consecutive missed detection for the object
+    misses_cnt = {} # Dictionary that stores how many consecutive missed detection for the object
     names = {0: 'high_conc', 1: 'low_conc', 2: 'med_conc', 3: 'no_conc'}
 
-    # #Inference variables
+    # Inference variables
     module_result = []  #stores results from the 3 modules for 20 frames
     RBP = 0
+
+    # manual_fps = 0.0 
+    # fps_start_time = time.perf_counter()
 
     # Iterate through each frame of the video
     while cv.waitKey(1) != 27: #ESC key
@@ -296,27 +307,19 @@ def process_video(source, filename):
         clss = []      
         for i in range(len(detections)):          
             box = detections[i]["box"]
-            print ("bbox: ", box)
             conf = detections[i]["conf"]
-            print ("conf: ", conf)
             cls = detections[i]["class_id"]
-            print ("class id: ", cls)
-            output.append([box[0], box[1], box[2], box[3], conf])       # x1, y1, x2, y2, conf
+            output.append([box[0], box[1], box[2], box[3], conf])       
             boxes.append([box[0], box[1], box[2], box[3]])
             clss.append(cls)
         output = torch.tensor(output)
         boxes = torch.tensor(boxes)
-        print ("output: ", output) 
-        print ("boxes: ", boxes)
-        print ("clss: ", clss)
         info_imgs = img_size = [frame_height, frame_width]
-        print ("info_imgs", info_imgs)
     
         # Tracking
         if len(output) != 0 :
             # Call the ByteTracker.update method with the filtered detections, frame information, and image size.
             online_targets = tracker.update(output, info_imgs, img_size)
-            print("online targets: ", online_targets) 
 
             # Extracting  information about the tracked objects
             online_boxes = []
@@ -325,120 +328,124 @@ def process_video(source, filename):
             # Iterating through updated tracks
             for t in online_targets:
                 tlwh = t.tlwh
-                # x, y, w, h = t.tlwh
-                # xyxy = [(x-w/2), (y-h/2), (x+w/2), (y+h/2)]
-                # xyxy = [int(tlwh[0]), int(tlwh[1]), (int(tlwh[0] + tlwh[2])), int(tlwh[1] + tlwh[3])]
                 tid = t.track_id
                 online_boxes.append(tlwh)
                 online_ids.append(tid)
-                print("online boxes: ", online_boxes)        
-                print("track ids: ", online_ids)
         online_boxes = torch.tensor(online_boxes)
 
         #Crowd density module
         crowd_density = crowd_density_module(online_boxes, frame)
-        print("crowd density: ", crowd_density)
 
         #Concealment module
         concealment_counts = concealment_module(clss)
-        print("concealment: ", concealment_counts)
 
         #Loitering module
         frame, missed_detect, misses_cnt, dwell_time, loitering = loitering_module(frame, online_boxes, online_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age)
-        print("loitering: ", loitering)
-        
-        if len(module_result) < 20:
-            module_result.append([frame_num, 
-                  crowd_density, 
-                  loitering, 
-                  concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
-        else:
+
+        module_result.append([frame_num, 
+                crowd_density, 
+                loitering, 
+                concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
+
+            
+        if len(module_result) == 20:
             # Make predictions
             RBP = infer(module_result)
-            module_result.clear()
-            
-        if save_vid or display_vid:
-            #Video annotation
-            frame = annotate_video(frame, RBP)
 
-            if display_vid:
-                cv.imshow(WIN_NAME, frame)
+        # if len(module_result) == 20:
+        #     module_result.clear()
 
-            if save_vid:
-                cap_out.write(frame)        
+        #     # FPS Manual Calculation
+        #     fps_end_time = time.perf_counter()
+        #     time_diff = fps_end_time - fps_start_time
+        #     if time_diff == 0:
+        #         manual_fps = 0.0
+        #     else:
+        #         manual_fps = (20 / time_diff)
+
+        #     with open(csv_file, 'a', newline='') as csvfile:
+        #                 csv_writer = csv.writer(csvfile)
+        #                 csv_writer.writerow([video_file, frame_num, manual_fps])
+
+        #     fps_start_time = time.perf_counter()
+
+        #Video annotation
+        # frame = annotate_video(frame, RBP, fps=0)
+        cv.imshow(WIN_NAME, frame)
 
     cap.release()
-    if save_vid:
-        cap_out.release()
-    if display_vid:
-        cv.destroyAllWindows()
+    cv.destroyAllWindows()
 
 
-def annotate_video(frame, RBP):
-    global RBP_threshold, RBP_info
-    global font, font_scale, thickness, position, x_text, y_text
-    global persist
+# def annotate_video(frame, RBP, fps):
+#     global RBP_threshold, RBP_info
+#     global font, font_scale, thickness, position, x_text, y_text
+#     global persist
     
-    RBP_text = RBP_info.format(RBP)
+#     RBP_text = RBP_info.format(RBP)
 
-    if RBP > RBP_threshold:
-            persist = 1
-            text_color = (0, 0, 128)  # Red color
-    else:
-        text_color = (0, 128, 0)   # Green color
+    # # Display FPS
+    # fps_txt = "FPS: {:.0f}".format(fps)
+    # cv.putText(frame, fps_txt, (5, 30), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 1)
+
+    # if RBP > RBP_threshold:
+    #         persist = 1
+    #         text_color = (0, 0, 128)  # Red color
+    # else:
+    #     text_color = (0, 128, 0)   # Green color
         
-    size_text = cv.getTextSize(RBP_text, font, font_scale, thickness)[0]
+    # size_text = cv.getTextSize(RBP_text, font, font_scale, thickness)[0]
     
-    # Calculate the position and size of the rectangle
-    x_rect = x_text - 5
-    y_rect = y_text - size_text[1] - 5
-    width_rect = size_text[0] + 10
-    height_rect = size_text[1] + 10
+    # # Calculate the position and size of the rectangle
+    # x_rect = x_text - 5
+    # y_rect = y_text - size_text[1] - 5
+    # width_rect = size_text[0] + 10
+    # height_rect = size_text[1] + 10
 
-    # Adjust if rectangle goes out of frame
-    if x_rect + width_rect > frame.shape[1]:
-        x_rect = frame.shape[1] - width_rect
-    if y_rect < 0:
-        y_rect = 0
+    # # Adjust if rectangle goes out of frame
+    # if x_rect + width_rect > frame.shape[1]:
+    #     x_rect = frame.shape[1] - width_rect
+    # if y_rect < 0:
+    #     y_rect = 0
 
-    # Draw white background rectangle
-    cv.rectangle(frame, (x_rect, y_rect), (x_rect + width_rect, y_rect + height_rect), (255, 255, 255), -1)
+    # # Draw white background rectangle
+    # cv.rectangle(frame, (x_rect, y_rect), (x_rect + width_rect, y_rect + height_rect), (255, 255, 255), -1)
     
-    # Adjust text position to fit inside the rectangle
-    x_text = x_rect + 5
-    y_text = y_rect + size_text[1] + 5
+    # # Adjust text position to fit inside the rectangle
+    # x_text = x_rect + 5
+    # y_text = y_rect + size_text[1] + 5
 
 
-    # Add text on top of the rectangle
-    cv.putText(frame, RBP_text, (x_text, y_text), font, font_scale, text_color, thickness, cv.LINE_AA)
+    # # Add text on top of the rectangle
+    # cv.putText(frame, RBP_text, (x_text, y_text), font, font_scale, text_color, thickness, cv.LINE_AA)
 
 
-      # WARNING SIGN
-    if persist == 1:
+    #   # WARNING SIGN
+    # if persist == 1:
 
-        # Define the warning text and rectangle properties
-        warning_text = "WARNING!"
-        warning_font_scale = font_scale*3
-        warning_font_thickness = thickness*2
-        warning_font_color = (255, 255, 255)  # White
-        bg_color = (0, 0, 255)  # Red
+    #     # Define the warning text and rectangle properties
+    #     warning_text = "WARNING!"
+    #     warning_font_scale = font_scale*3
+    #     warning_font_thickness = thickness*2
+    #     warning_font_color = (255, 255, 255)  # White
+    #     bg_color = (0, 0, 255)  # Red
 
-        # Calculate the text size and position
-        w_text_size = cv.getTextSize(warning_text, font, warning_font_scale, warning_font_thickness)[0]
-        w_text_x = (frame_width - w_text_size[0]) // 2
-        w_text_y = (frame_height + w_text_size[1]) // 2
+    #     # Calculate the text size and position
+    #     w_text_size = cv.getTextSize(warning_text, font, warning_font_scale, warning_font_thickness)[0]
+    #     w_text_x = (frame_width - w_text_size[0]) // 2
+    #     w_text_y = (frame_height + w_text_size[1]) // 2
 
-        # Calculate the position and size of the rectangle
-        w_rect_x = w_text_x - 5
-        w_rect_y = w_text_y - w_text_size[1] - 5
-        w_width_rect = w_text_size[0] + 10
-        w_height_rect = w_text_size[1] + 10
+    #     # Calculate the position and size of the rectangle
+    #     w_rect_x = w_text_x - 5
+    #     w_rect_y = w_text_y - w_text_size[1] - 5
+    #     w_width_rect = w_text_size[0] + 10
+    #     w_height_rect = w_text_size[1] + 10
 
-        # Draw the red background rectangle
-        cv.rectangle(frame, (w_rect_x, w_rect_y), (w_rect_x + w_width_rect, w_rect_y + w_height_rect), bg_color, -1)
+    #     # Draw the red background rectangle
+    #     cv.rectangle(frame, (w_rect_x, w_rect_y), (w_rect_x + w_width_rect, w_rect_y + w_height_rect), bg_color, -1)
 
-        # Add the warning text
-        cv.putText(frame, warning_text, (w_text_x, w_text_y), font, warning_font_scale, warning_font_color, warning_font_thickness)
+    #     # Add the warning text
+    #     cv.putText(frame, warning_text, (w_text_x, w_text_y), font, warning_font_scale, warning_font_color, warning_font_thickness)
    
     return frame
 
@@ -453,19 +460,11 @@ if __name__ == "__main__":
     #---------------YOLOv8 & TensorRT---------------#
 
     # Load custom plugin and engine
-    if args.yolomodel == "custom":
-        PLUGIN_LIBRARY = "trt_integration/yolo_model/build_custom/libmyplugins.so"
-        engine_file_path = "trt_integration/yolo_model/build_custom/best_finalCustom.engine"    
-    elif args.yolomodel == "v8n":
-        PLUGIN_LIBRARY = "trt_integration/yolo_model/build_yolov8n/libmyplugins.so"
-        engine_file_path = "trt_integration/yolo_model/build_yolov8n/yolov8n.engine"
-    elif args.yolomodel == "v7t":
-        PLUGIN_LIBRARY = "trt_integration/yolo_model/build_yolov7t/libmyplugins.so"
-        engine_file_path = "trt_integration/yolo_model/build_yolov7t/yolov7-tiny.engine"    
+    PLUGIN_LIBRARY = "trt_integration/yolo_model/build_custom/libmyplugins.so"
+    engine_file_path = "trt_integration/yolo_model/build_custom/best_finalCustom.engine"    
 
     # Initialize YOLOv8 Detector object using a TensorRT engine file
-    model = YoloTRT(library=PLUGIN_LIBRARY, engine=engine_file_path, conf=0.5, yolo_ver=args.yolomodel)
-    # model = YoloTRT(engine_file_path)
+    model = YoloTRT(library=PLUGIN_LIBRARY, engine=engine_file_path, conf=0.5)
 
     #---------------ByteTrack---------------#
     args_bytetrack = argparse.Namespace()
@@ -483,27 +482,36 @@ if __name__ == "__main__":
     if args.input == "video":
         source = "integration/input-vid"
     else:
-        source = 1
+        source = 0
 
     frame_width = frame_height = fps = 0
 
     #---------------Output---------------#
-
-    try:
-        save_vid = int(args.save_vid)
-    except ValueError:
-        save_vid = True
-        output_path = args.save_vid
 
     #---------------Display window properties---------------#
 
     display_vid = args.no_display
     RBP_info = ("RBP: {:.2f}")
     RBP_threshold = 0.485
-    persist = 1
+    persist = 0
     font = cv.FONT_HERSHEY_SIMPLEX
     font_scale = thickness = 0
     x_text = y_text = position = 0
+    
+    #---------------Performance Profiling---------------#
+
+    # Peformance profiling
+    profiling_folder = 'trt_integration/profiling'  # Define the profiling folder
+
+    # Create the profiling folder if it doesn't exist
+    if not os.path.exists(profiling_folder):
+        os.makedirs(profiling_folder)
+
+    # # CSV file to log fps
+    # csv_file = os.path.join(profiling_folder, 'fps_log.csv')
+    # with open(csv_file, 'w', newline='') as csvfile:
+    #     csv_writer = csv.writer(csvfile)
+    #     csv_writer.writerow(['filename', 'frame_num', 'fps'])
     
     #---------------Processing the source---------------#
 
@@ -520,17 +528,46 @@ if __name__ == "__main__":
         #List of all video files in the folder_path
         video_files = os.listdir(source)
 
-        for video_file in video_files:
-            if video_file.endswith('.mp4'): 
-                WIN_NAME = f"RBP: {video_file}"
-                video_path = os.path.join(source, video_file)
-                with cProfile.Profile() as pr:
-                    process_video(video_path, video_file)
-                stats = pstats.Stats(pr)
-                stats.sort_stats(pstats.SortKey.TIME)
-                #stats.print_stats()
-                stats.dump_stats(filename="profiling.prof")
+        try:
+            with cProfile.Profile() as pr:
+                for video_file in video_files:
+                    if video_file.endswith('.mp4'): 
+                        WIN_NAME = f"RBP: {video_file}"
+                        video_path = os.path.join(source, video_file)
+                        
+                        process_video(video_path)
+                        persist = 0
+
+                    else:
+                        print("Invalid source.")
+                        sys.exit()
+
+            stats = pstats.Stats(pr)
+            stats.sort_stats(pstats.SortKey.TIME)
+
+            # Save the profiling stats in the profiling folder
+            # stats.print_stats()
+            profile_filename = os.path.join(profiling_folder, f"profiling_total.prof")
+            stats.dump_stats(filename=profile_filename)
+
+        except Exception as e:
+            print(f"Profiling error: {e}")
+
+    # elif isinstance(source, str):
+    #     #List of all video files in the folder_path
+    #     video_files = os.listdir(source)
+
+    #     for video_file in video_files:
+    #         if video_file.endswith('.mp4'): 
+    #             WIN_NAME = f"RBP: {video_file}"
+    #             video_path = os.path.join(source, video_file)
+    #             with cProfile.Profile() as pr:
+    #                 process_video(video_path, video_file)
+    #             stats = pstats.Stats(pr)
+    #             stats.sort_stats(pstats.SortKey.TIME)
+    #             #stats.print_stats()
+    #             stats.dump_stats(filename="profiling.prof")
                 
-            else:
-                print("Invalid source.")
-                sys.exit()
+    #         else:
+    #             print("Invalid source.")
+    #             sys.exit()
