@@ -85,7 +85,7 @@ def display_resource_jetson():
         # Adjust layout
         plt.tight_layout()
         plt.show()
-    except Exception as e:
+    except Exception:
         pass
 
 def display_resource():
