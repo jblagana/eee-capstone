@@ -26,3 +26,9 @@ python -m trt_integration.main
 `--max-age`      maximum consecutive missed detections before deleting ID `default = 500` <br/>
 `--save-vid`     saves annotated video if enabled (1) `default = 0`  <br/>
 `--no-display`   disables playing of video while processing <br/>
+
+## Displaying Evaluation Plots (FPS, resource consumption, profiles)
+```
+python -m integration.profiling.display
+python -m trt_integration.profiling.display
+```
