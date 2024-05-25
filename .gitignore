@@ -6,4 +6,5 @@ env3.8
 env3.11
 integration/input-vid
 integration/lstm_model_0.485.pt
+integration/lstm_model_skip5_0.450.pt
 yolo_model/best_finalCustom.pt
