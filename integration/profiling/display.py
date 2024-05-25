@@ -23,7 +23,7 @@ def display_fps():
     # Plot FPS data
     plt.figure()
     for filename, frame_num, fps in parsed_data:
-        plt.scatter(frame_num, fps, label=filename, marker='.')
+        plt.scatter(frame_num, fps, label=filename, marker='.', s=7)
 
     plt.xlabel('Frame Number')
     plt.ylabel('FPS')
@@ -34,10 +34,12 @@ def display_fps():
 
 def display_statistics():
 # Displaying block statistics
-    profiles = os.listdir(profiling_folder)
-    for profile in profiles:
-        if profile.endswith(".prof"):
-            subprocess.Popen(["snakeviz", os.path.join(profiling_folder, profile)])
+    # profiles = os.listdir(profiling_folder)
+    # for profile in profiles:
+    #     if profile.endswith(".prof"):
+    #         subprocess.Popen(["snakeviz", os.path.join(profiling_folder, profile)])
+
+    subprocess.Popen(["snakeviz", os.path.join(profiling_folder, "profiling_total.prof")])
 
 
 def display_resource_jetson():
@@ -89,41 +91,45 @@ def display_resource_jetson():
         pass
 
 def display_resource():
-# Display resource consumption
-    df = pd.read_csv(os.path.join(profiling_folder, "resource_log-notJetson.csv"))
+    # Display resource consumption
+    try:
+        df = pd.read_csv(os.path.join(profiling_folder, "resource_log-notJetson.csv"))
 
-    # Extract relevant columns
-    time = df.index
-    cpu_usage = df[["CPU"]]
-    cpu_usage = cpu_usage.mean(axis=1) # Average cpu usage of all cpu cores
-    gpu_usage = df["GPU"]
-    memory_usage = df["RAM"]
+        # Extract relevant columns
+        time = df.index
+        cpu_usage = df[["CPU"]]
+        cpu_usage = cpu_usage.mean(axis=1) # Average cpu usage of all cpu cores
+        gpu_usage = df["GPU"]
+        memory_usage = df["RAM"]
 
-    # Create a 2x2 subplot
-    fig, axs = plt.subplots(2, 2, figsize=(9, 6))
+        # Create a 2x2 subplot
+        fig, axs = plt.subplots(2, 2, figsize=(9, 6))
 
-    # Plot CPU usage
-    axs[0, 0].plot(time, cpu_usage, label="CPU")
-    axs[0, 0].set_title("CPU Usage")
-    axs[0, 0].set_ylabel("Usage (%)")
-    axs[0, 0].legend()
+        # Plot CPU usage
+        axs[0, 0].plot(time, cpu_usage, label="CPU")
+        axs[0, 0].set_title("CPU Usage")
+        axs[0, 0].set_ylabel("Usage (%)")
+        axs[0, 0].legend()
 
-    # Plot GPU usage
-    axs[0, 1].plot(time, gpu_usage, label="GPU")
-    axs[0, 1].set_title("GPU Usage")
-    axs[0, 1].set_ylabel("Usage (%)")
-    axs[0, 1].legend()
+        # Plot GPU usage
+        axs[0, 1].plot(time, gpu_usage, label="GPU")
+        axs[0, 1].set_title("GPU Usage")
+        axs[0, 1].set_ylabel("Usage (%)")
+        axs[0, 1].legend()
 
-    # Plot memory usage
-    axs[1, 0].plot(time, memory_usage, label="Memory")
-    axs[1, 0].set_title("Memory Usage")
-    axs[1, 0].set_xlabel("Time (s)")
-    axs[1, 0].set_ylabel("Usage (%)")
-    axs[1, 0].legend()
+        # Plot memory usage
+        axs[1, 0].plot(time, memory_usage, label="Memory")
+        axs[1, 0].set_title("Memory Usage")
+        axs[1, 0].set_xlabel("Time (s)")
+        axs[1, 0].set_ylabel("Usage (%)")
+        axs[1, 0].legend()
 
-    # Adjust layout
-    plt.tight_layout()
-    plt.show()
+        # Adjust layout
+        plt.tight_layout()
+        plt.show()
+
+    except Exception:
+        pass
 
 if __name__ == "__main__":
     profiling_folder = "integration/profiling"
