@@ -30,6 +30,8 @@ def display_fps():
     plt.title('FPS of Video Files')
     # plt.legend()
     plt.show()
+    # Save the plot as an image
+    # plt.savefig('integration/profiling/fps_log.png')
 
 
 def display_statistics():
@@ -86,7 +88,8 @@ def display_resource_jetson():
 
         # Adjust layout
         plt.tight_layout()
-        plt.show()
+        
+        plt.savefig('trt_integration/profiling/resource_jetson.png')
     except Exception:
         pass
 
