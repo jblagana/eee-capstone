@@ -7,7 +7,6 @@ python -m integration.main
 > [!TIP]
 **arguments**: <br/>
 `--yolo-path`       path of YOLO model `default = "./yolo_model/best_finalCustom.pt"`  <br/>
-`--persist-yolo`    displays YOLO inference if enabled `default="store_false"` <br/>
 `--bytetrack-path`  path of ByteTrack configuration file `default = "./loitering/custom-bytetrack.yaml"` <br/>
 `--max-age`         maximum consecutive missed detections before deleting ID `default = 500` <br/>
 `--source`          for camera: 0. for video: folder_path where video/s is stored `default="./integration/input-vid"` <br/>
