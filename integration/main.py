@@ -185,7 +185,7 @@ def infer(input_sequence):
 
 def process_video(source, filename):
     #Global variables 
-    global yolo_path, bytetrack_path, max_age, persist_yolo
+    global yolo_path, bytetrack_path, max_age
     global frame_width, frame_height
     global font_scale, thickness, position, x_text, y_text, WIN_NAME
     global display_vid, save_vid, output_path
@@ -247,7 +247,7 @@ def process_video(source, filename):
         frame_num += 1
 
         # Perform detection & tracking on frame
-        results = model.track(frame, persist=persist_yolo, verbose=False, tracker=bytetrack_path)
+        results = model.track(frame, persist=True, verbose=False, tracker=bytetrack_path)
         if results[0].boxes.id is not None:
             boxes = results[0].boxes.xywh.cpu() 
             track_ids = results[0].boxes.id.int().cpu().tolist()
@@ -382,12 +382,6 @@ def parse_args():
         help="Path of YOLO model."
     )
 
-    parser.add_argument(
-        "--persist-yolo",
-        default="store_false",
-        help="Displays YOLO inference if enabled."
-    )
-
     #Byetrack arguments
         #bytetrack yaml file
     parser.add_argument(
@@ -449,7 +443,6 @@ if __name__ == "__main__":
     except:
         print("Failed to load YOLO model.")
         sys.exit()
-    persist_yolo = args.persist_yolo
     
     bytetrack_path = args.bytetrack_path
     max_age = args.max_age
