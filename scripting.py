@@ -18,9 +18,9 @@ from tqdm import tqdm
 from ultralytics import YOLO
 from ultralytics.utils.plotting import Annotator, colors
 
-from concealment.concealment import updated_concealment
-from crowd_density.crowd_density import detect_crowd_density
-from loitering.loitering import detect_loitering
+from concealment.concealment import concealment_module
+from crowd_density.crowd_density import crowd_density_module
+from loitering.loitering import loitering_module
 
 
 def module_threads():
@@ -89,50 +89,52 @@ def vid_processing(folder_path, csv_filename, field_names):
             #Processing each frame
             frame_num = 0 
             ret, frame = cap.read()
+            skip = 5 # log only every x frames
             while ret:
                 frame_num += 1
 
-                # Perform detection & tracking on frame
-                results = model.track(frame, persist=True, verbose=False, tracker="loitering/custom-bytetrack.yaml")
-                if results[0].boxes.id is not None:
-                    boxes = results[0].boxes.xywh.cpu() 
-                    track_ids = results[0].boxes.id.int().cpu().tolist()
-                    clss = results[0].boxes.cls.cpu().tolist()
-                    names = results[0].names
-                else:
-                    #No detections
-                    #print("No detections")
-                    boxes, track_ids, clss, names = [[] for _ in range(4)]
+                if frame_num % skip == 0:
+                    # Perform detection & tracking on frame only every 5 frames
+                    results = model.track(frame, persist=True, verbose=False, tracker="loitering/custom-bytetrack.yaml")
+                    if results[0].boxes.id is not None:
+                        boxes = results[0].boxes.xywh.cpu() 
+                        track_ids = results[0].boxes.id.int().cpu().tolist()
+                        clss = results[0].boxes.cls.cpu().tolist()
+                        names = results[0].names
+                    else:
+                        #No detections
+                        #print("No detections")
+                        boxes, track_ids, clss, names = [[] for _ in range(4)]
 
-                #Crowd density module
-                crowd_density, crowd_count = detect_crowd_density(boxes, frame)
+                    #Crowd density module
+                    crowd_density = crowd_density_module(boxes, frame)
 
-                #Loitering module
-                missed_detect, misses_cnt, dwell_time, loitering = detect_loitering(boxes, track_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age)
+                    #Loitering module
+                    frame, missed_detect, misses_cnt, dwell_time, loitering = loitering_module(frame, boxes, track_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age)
 
-                #Concealment module
-                concealment_counts = updated_concealment(clss)
+                    #Concealment module
+                    concealment_counts = concealment_module(clss)
 
-                # RBP of each video
-                if 'anomaly' in video_file:
-                    rbp = 1
-                elif 'normal' in video_file:
-                    rbp = 0
-                    
-                #print("Video file [{}] Frame #{}: crowd density={}, crowd_count={}, loitering={}, concealment={}".format(video_file, frame_num, crowd_density, crowd_count, loitering, concealment_counts))
+                    # RBP of each video
+                    if 'anomaly' in video_file:
+                        rbp = 1
+                    elif 'normal' in video_file:
+                        rbp = 0
+                        
+                    #print("Video file [{}] Frame #{}: crowd density={}, crowd_count={}, loitering={}, concealment={}".format(video_file, frame_num, crowd_density, crowd_count, loitering, concealment_counts))
 
-                #Appending data to the CSV file
-                writer.writerow({
-                    "video_id": video_file,
-                    "frame_num": frame_num,
-                    "crowd_density": crowd_density,
-                    "loitering": loitering,
-                    "no_concealment": concealment_counts[3],
-                    "low_concealment": concealment_counts[1],
-                    "med_concealment": concealment_counts[2],
-                    "high_concealment": concealment_counts[0],
-                    "rbp": rbp
-                })
+                    #Appending data to the CSV file
+                    writer.writerow({
+                        "video_id": video_file,
+                        "frame_num": frame_num,
+                        "crowd_density": crowd_density,
+                        "loitering": loitering,
+                        "no_concealment": concealment_counts[3],
+                        "low_concealment": concealment_counts[1],
+                        "med_concealment": concealment_counts[2],
+                        "high_concealment": concealment_counts[0],
+                        "rbp": rbp
+                    })
 
                 #Update progress bar
                 progress_bar.update(1)
@@ -146,7 +148,7 @@ def vid_processing(folder_path, csv_filename, field_names):
         
 if __name__ == "__main__":
     #Declaring CSV filename and header fields
-    csv_filename = "output_50_50.csv"
+    csv_filename = "train_inf5050_skip5.csv"
     field_names = ["video_id","frame_num","crowd_density","loitering","no_concealment","low_concealment","med_concealment","high_concealment","rbp"]
 
     #Declaring folder path of the videos to be processed
