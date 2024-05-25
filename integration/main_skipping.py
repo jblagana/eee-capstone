@@ -185,7 +185,7 @@ def infer(input_sequence):
 
 def process_video(source, filename):
     #Global variables 
-    global yolo_path, bytetrack_path, max_age
+    global yolo_path, bytetrack_path, max_age, persist_yolo
     global frame_width, frame_height
     global font_scale, thickness, position, x_text, y_text, WIN_NAME
     global display_vid, save_vid, output_path
@@ -246,55 +246,43 @@ def process_video(source, filename):
         
         frame_num += 1
 
-        # Perform detection & tracking on frame
-        results = model.track(frame, persist=True, verbose=False, tracker=bytetrack_path)
-        if results[0].boxes.id is not None:
-            boxes = results[0].boxes.xywh.cpu() 
-            track_ids = results[0].boxes.id.int().cpu().tolist()
-            clss = results[0].boxes.cls.cpu().tolist()
-            names = results[0].names
-        else:
-            boxes, track_ids, clss, names = [[] for _ in range(4)]
-        
-        #Crowd density module
-        crowd_density = crowd_density_module(boxes, frame)
-        
-        #Concealment module
-        concealment_counts = concealment_module(clss)
-
-        #Loitering module
-        missed_detect, misses_cnt, dwell_time, loitering = loitering_module(boxes, track_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age)
-        
-        """
-        print([frame_num, 
-                  crowd_density, 
-                  loitering, 
-                  concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
-        """
-        
-        module_result.append([frame_num, 
-                crowd_density, 
-                loitering, 
-                concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
-
+        if frame_num % skip == 0:
+            # Perform detection & tracking on frame
+            results = model.track(frame, persist=persist_yolo, verbose=False, tracker=bytetrack_path)
+            if results[0].boxes.id is not None:
+                boxes = results[0].boxes.xywh.cpu() 
+                track_ids = results[0].boxes.id.int().cpu().tolist()
+                clss = results[0].boxes.cls.cpu().tolist()
+                names = results[0].names
+            else:
+                boxes, track_ids, clss, names = [[] for _ in range(4)]
             
-        if len(module_result) == 20:
-            # Make predictions
-            RBP = infer(module_result)
+            #Crowd density module
+            crowd_density = crowd_density_module(boxes, frame)
+            
+            #Concealment module
+            concealment_counts = concealment_module(clss)
 
+            #Loitering module
+            missed_detect, misses_cnt, dwell_time, loitering = loitering_module(boxes, track_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age)
+            
+            """
+            print([frame_num, 
+                    crowd_density, 
+                    loitering, 
+                    concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
+            """
+            
+            module_result.append([frame_num, 
+                    crowd_density, 
+                    loitering, 
+                    concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
 
-        if save_vid or display_vid:          
-            #Video annotation
-            frame = annotate_video(frame, RBP, fps=0)
-
-            if display_vid:
-                cv.imshow(WIN_NAME, frame)
-
-            if save_vid:
-                cap_out.write(frame)
-
-        if len(module_result) == 20:
-            module_result.clear()
+                
+            if (len(module_result) == 20) and (not persist):
+                # Make predictions
+                RBP = infer(module_result)
+                module_result.clear()
 
             # FPS Manual Calculation
             fps_end_time = time.perf_counter()
@@ -302,7 +290,7 @@ def process_video(source, filename):
             if time_diff == 0:
                 manual_fps = 0.0
             else:
-                manual_fps = (20 / time_diff)
+                manual_fps = (skip / time_diff)
 
             with open(csv_file, 'a', newline='') as csvfile:
                         csv_writer = csv.writer(csvfile)
@@ -310,6 +298,16 @@ def process_video(source, filename):
 
             fps_start_time = time.perf_counter()
 
+
+        if save_vid or display_vid:          
+            #Video annotation
+            frame = annotate_video(frame, RBP)
+
+            if display_vid:
+                cv.imshow(WIN_NAME, frame)
+
+            if save_vid:
+                cap_out.write(frame)
 
         #Progress bar for video
         # if isinstance(source, str):
@@ -326,7 +324,7 @@ def process_video(source, filename):
         cv.destroyAllWindows()
 
         
-def annotate_video(frame, RBP, fps):
+def annotate_video(frame, RBP):
     global RBP_threshold, RBP_info
     global frame_width, frame_height
     global font, font_scale, thickness, position, x_text, y_text, size_text
@@ -336,25 +334,21 @@ def annotate_video(frame, RBP, fps):
     global persist
 
     frame = cv.resize(frame, (frame_width, frame_height))
-
-    # Display FPS
-    # fps_txt = "FPS: {:.0f}".format(fps)
-    # cv.putText(frame, fps_txt, (5, 30), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 1)
     
     # Display RBP
-    RBP_text = RBP_info.format(RBP)
+    # RBP_text = RBP_info.format(RBP)
 
     if RBP > RBP_threshold:
         persist = 1
-        text_color = (0, 0, 128)  # Red color
-    else:
-        text_color = (0, 128, 0)   # Green color
+    #     text_color = (0, 0, 128)  # Red color
+    # else:
+    #     text_color = (0, 128, 0)   # Green color
 
-    # Draw white background rectangle
-    cv.rectangle(frame, (x_rect, y_rect), (x_rect + width_rect, y_rect + height_rect), (255, 255, 255), -1)
+    # # Draw white background rectangle
+    # cv.rectangle(frame, (x_rect, y_rect), (x_rect + width_rect, y_rect + height_rect), (255, 255, 255), -1)
     
-    # Add text on top of the rectangle
-    cv.putText(frame, RBP_text, (x_text, y_text), font, font_scale, text_color, thickness, cv.LINE_AA)
+    # # Add text on top of the rectangle
+    # cv.putText(frame, RBP_text, (x_text, y_text), font, font_scale, text_color, thickness, cv.LINE_AA)
 
     # WARNING SIGN
     if persist:
@@ -380,6 +374,12 @@ def parse_args():
         type=str,
         default="./yolo_model/best_finalCustom.pt",
         help="Path of YOLO model."
+    )
+
+    parser.add_argument(
+        "--persist-yolo",
+        default="store_false",
+        help="Displays YOLO inference if enabled."
     )
 
     #Byetrack arguments
@@ -434,6 +434,7 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
+    skip = 5
 
     #---------------YOLO & ByteTrack---------------#
     yolo_path = args.yolo_path
@@ -443,6 +444,7 @@ if __name__ == "__main__":
     except:
         print("Failed to load YOLO model.")
         sys.exit()
+    persist_yolo = args.persist_yolo
     
     bytetrack_path = args.bytetrack_path
     max_age = args.max_age

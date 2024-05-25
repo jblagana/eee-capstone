@@ -23,7 +23,7 @@ def display_fps():
     # Plot FPS data
     plt.figure()
     for filename, frame_num, fps in parsed_data:
-        plt.scatter(frame_num, fps, label=filename, marker='.')
+        plt.scatter(frame_num, fps, label=filename, marker='.', s=7)
 
     plt.xlabel('Frame Number')
     plt.ylabel('FPS')
@@ -36,10 +36,12 @@ def display_fps():
 
 def display_statistics():
 # Displaying block statistics
-    profiles = os.listdir(profiling_folder)
-    for profile in profiles:
-        if profile.endswith(".prof"):
-            subprocess.Popen(["snakeviz", os.path.join(profiling_folder, profile)])
+    # profiles = os.listdir(profiling_folder)
+    # for profile in profiles:
+    #     if profile.endswith(".prof"):
+    #         subprocess.Popen(["snakeviz", os.path.join(profiling_folder, profile)])
+
+    subprocess.Popen(["snakeviz", os.path.join(profiling_folder, "profiling_total.prof")])
 
 
 def display_resource_jetson():
@@ -128,11 +130,12 @@ def display_resource():
         # Adjust layout
         plt.tight_layout()
         plt.show()
+
     except Exception:
         pass
 
 if __name__ == "__main__":
-    profiling_folder = "trt_integration/profiling"
+    profiling_folder = "integration/profiling"
 
     display_fps()
     display_resource_jetson()
