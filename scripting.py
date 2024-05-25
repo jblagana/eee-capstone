@@ -148,7 +148,7 @@ def vid_processing(folder_path, csv_filename, field_names):
         
 if __name__ == "__main__":
     #Declaring CSV filename and header fields
-    csv_filename = "train_inf5050_skip5.csv"
+    csv_filename = "train_inf2080_skip5.csv"
     field_names = ["video_id","frame_num","crowd_density","loitering","no_concealment","low_concealment","med_concealment","high_concealment","rbp"]
 
     #Declaring folder path of the videos to be processed
