@@ -322,8 +322,8 @@ def parse_args():
     # Skip 5 frames
     parser.add_argument(
         "--skip-frames",
-        action="store_true",
-        help="Enables skipping of 5 frames",
+        default=1,
+        help="Enables skipping of frames by input number. Default = 1 (no skip)",
     )
     args = parser.parse_args()
     return args
@@ -417,12 +417,12 @@ def loitering_module(frame, boxes, track_ids, clss, names, missed_detect, misses
         misses_cnt[track_id] = 0    #Reset misses_cnt to 0
         
         #Annotate video
-        x1, y1, x2, y2 = box
-        cls_name = class_names[int(cls)]
-        xywh = [(x1 - x2 / 2), (y1 - y2 / 2), (x1 + x2 / 2), (y1 + y2 / 2)]
-        label = "#{}:{}".format(track_id, dwell_time[track_id])
-        annotator = Annotator(frame, line_width=1, example=names)
-        annotator.box_label(xywh, label=label, color=colors(int(cls), True), txt_color=(255, 255, 255))
+        # x1, y1, x2, y2 = box
+        # cls_name = class_names[int(cls)]
+        # xywh = [(x1 - x2 / 2), (y1 - y2 / 2), (x1 + x2 / 2), (y1 + y2 / 2)]
+        # label = "#{}:{}".format(track_id, dwell_time[track_id])
+        # annotator = Annotator(frame, line_width=1, example=names)
+        # annotator.box_label(xywh, label=label, color=colors(int(cls), True), txt_color=(255, 255, 255))
 
     # Check number of missed detections of each object
     if missed_detect:
@@ -457,6 +457,7 @@ class LSTMModel(nn.Module):
         return out
 
 def infer(input_sequence):
+    global skip
     n_features = 6
     sequence_length = 20
     input_sequence = np.array(input_sequence)
@@ -465,10 +466,14 @@ def infer(input_sequence):
     model = LSTMModel(n_features, hidden_size=64)
 
     # Load the saved weights
-    if skip_frames:
-        print ("Loading the lstm model for skipping frames")
+    if skip == 5:
+        print ("Loading the lstm model for skipping 5 frames")
         lstm_model = "./integration/lstm_model_skip5_0.450.pt"
+    elif skip == 4:
+        print ("Loading the lstm model for skipping 4 frames")
+        lstm_model = "./integration/lstm_model_skip4_0.471.pt"       
     else:
+        print ("Loading the lstm model for NOT skipping frames")
         lstm_model = "./integration/lstm_model_0.485.pt"
     model.load_state_dict(torch.load(lstm_model))
     model.eval()  # Set the model to evaluation mode
@@ -518,7 +523,7 @@ def process_video(source):
     # Global variables 
     global model, tracker, max_age
     global frame_width, frame_height, capture_width, capture_height
-    global display_vid, skip_frames, annotate
+    global display_vid, annotate, skip
     
     # Capture source
     if args.input == 'video':    
@@ -563,97 +568,91 @@ def process_video(source):
             break  
         frame_num += 1
 
-        # # Skip frames
-        # if skip_frames:
-        #     if frame_num % 2 != 0:
-        #         continue
+        # Skip frames
+        if frame_num % skip != 0:
+            continue
 
-        # # YOLO Inference with TensorRT
-        # detections, t = model.Inference(frame)
-        # logger.info("Detections: {}".format(detections))
+        # YOLO Inference with TensorRT
+        detections, t = model.Inference(frame)
+        logger.info("Detections: {}".format(detections))
         
-        # # Handle empty detection results
-        # if not detections:
-        #     print("No detections found!")
-        #     continue
+        # Handle empty detection results
+        if not detections:
+            print("No detections found!")
+            continue
         
-        # # Format Conversion and Filtering
-        # output = []   
-        # boxes = []    
-        # clss = []      
-        # for i in range(len(detections)):          
-        #     box = detections[i]["box"]
-        #     conf = detections[i]["conf"]
-        #     cls = detections[i]["class_id"]
-        #     output.append([box[0], box[1], box[2], box[3], conf])       
-        #     boxes.append([box[0], box[1], box[2], box[3]])
-        #     clss.append(cls)
-        # output = torch.tensor(output)
-        # boxes = torch.tensor(boxes)
-        # if args.input == 'video':
-        #     info_imgs = img_size = [frame_height, frame_width]
-        # else:
-        #     info_imgs = img_size = [capture_height, capture_width]
+        # Format Conversion and Filtering
+        output = []   
+        boxes = []    
+        clss = []      
+        for i in range(len(detections)):          
+            box = detections[i]["box"]
+            conf = detections[i]["conf"]
+            cls = detections[i]["class_id"]
+            output.append([box[0], box[1], box[2], box[3], conf])       
+            boxes.append([box[0], box[1], box[2], box[3]])
+            clss.append(cls)
+        output = torch.tensor(output)
+        boxes = torch.tensor(boxes)
+        if args.input == 'video':
+            info_imgs = img_size = [frame_height, frame_width]
+        else:
+            info_imgs = img_size = [capture_height, capture_width]
 
-        # # Tracking
-        # if len(output) != 0 :
-        #     # Call the ByteTracker.update method with the filtered detections, frame information, and image size.
-        #     online_targets = tracker.update(output, info_imgs, img_size)
+        # Tracking
+        if len(output) != 0 :
+            # Call the ByteTracker.update method with the filtered detections, frame information, and image size.
+            online_targets = tracker.update(output, info_imgs, img_size)
 
-        #     # Extracting  information about the tracked objects
-        #     online_boxes = []
-        #     online_ids = []    
+            # Extracting  information about the tracked objects
+            online_boxes = []
+            online_ids = []    
 
-        #     # Iterating through updated tracks
-        #     for t in online_targets:
-        #         tlwh = t.tlwh
-        #         tid = t.track_id
-        #         online_boxes.append(tlwh)
-        #         online_ids.append(tid)
-        # online_boxes = torch.tensor(online_boxes)
+            # Iterating through updated tracks
+            for t in online_targets:
+                tlwh = t.tlwh
+                tid = t.track_id
+                online_boxes.append(tlwh)
+                online_ids.append(tid)
+        online_boxes = torch.tensor(online_boxes)
 
-        # #Crowd density module
-        # crowd_density = crowd_density_module(online_boxes, frame)
+        #Crowd density module
+        crowd_density = crowd_density_module(online_boxes, frame)
 
-        # #Concealment module
-        # concealment_counts = concealment_module(clss)
+        #Concealment module
+        concealment_counts = concealment_module(clss)
 
-        # #Loitering module
-        # missed_detect, misses_cnt, dwell_time, loitering = loitering_module(frame, online_boxes, online_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age)
+        #Loitering module
+        missed_detect, misses_cnt, dwell_time, loitering = loitering_module(frame, online_boxes, online_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age)
 
-        # module_result.append([frame_num, 
-        #         crowd_density, 
-        #         loitering, 
-        #         concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
+        module_result.append([frame_num, 
+                crowd_density, 
+                loitering, 
+                concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
 
-            
-        # if len(module_result) == 20:
-        #     # Make predictions
-        #     RBP = infer(module_result)
+        if len(module_result) == 20:
+            # Make predictions
+            RBP = infer(module_result)
+            module_result.clear()
 
-        # if display_vid and annotate:
-        #     frame = annotate_video(frame, RBP, fps=0)
+        if fps_log:
+            # FPS Manual Calculation
+            fps_end_time = time.perf_counter()
+            time_diff = fps_end_time - fps_start_time
+            if time_diff == 0:
+                manual_fps = 0.0
+            else:
+                manual_fps = (skip / time_diff)
 
-        # if len(module_result) == 20:
-        #     module_result.clear()
+            with open(csv_file, 'a', newline='') as csvfile:
+                        csv_writer = csv.writer(csvfile)
+                        csv_writer.writerow([video_file, frame_num, manual_fps])
 
-            # if fps_log:
-            #     # FPS Manual Calculation
-            #     fps_end_time = time.perf_counter()
-            #     time_diff = fps_end_time - fps_start_time
-            #     if time_diff == 0:
-            #         manual_fps = 0.0
-            #     else:
-            #         manual_fps = (20 / time_diff)
+            fps_start_time = time.perf_counter()
 
-            #     with open(csv_file, 'a', newline='') as csvfile:
-            #                 csv_writer = csv.writer(csvfile)
-            #                 csv_writer.writerow([video_file, frame_num, manual_fps])
-
-            #     fps_start_time = time.perf_counter()
-
-        # Video annotation
         if display_vid:
+            if annotate:
+                frame = annotate_video(frame, RBP, fps=0)
             cv.imshow(WIN_NAME, frame)
 
     cap.release()
@@ -815,7 +814,7 @@ if __name__ == "__main__":
     
     #---------------Processing/Profiling---------------#
     profile_code = args.no_profile 
-    skip_frames = args.skip_frames
+    skip = int(args.skip_frames)
 
     # No Profiling
     if not profile_code:

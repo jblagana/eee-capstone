@@ -135,7 +135,7 @@ def display_resource():
         pass
 
 if __name__ == "__main__":
-    profiling_folder = "integration/profiling"
+    profiling_folder = "trt_integration/profiling"
 
     display_fps()
     display_resource_jetson()
