@@ -16,7 +16,7 @@ import pycuda.driver as cuda
 import tensorrt as trt
 
 from trt_integration.bytetrack.byte_tracker import BYTETracker
-# from trt_integration.yoloDet import YoloTRT
+from ultralytics.utils.plotting import Annotator, colors
 
 import torch
 import torch.nn as nn
@@ -104,7 +104,8 @@ class YoloTRT():
         image = np.ascontiguousarray(image)
         return image, image_raw, h, w
 
-    def Inference(self, img):
+    def Inference(self, frame):
+        img = frame
         host_inputs = self.host_inputs
         cuda_inputs = self.cuda_inputs
         host_outputs = self.host_outputs
@@ -125,10 +126,6 @@ class YoloTRT():
         
         for i in range(self.batch_size):
             result_boxes, result_scores, result_classid = self.PostProcess(output[i * self.det_output_length: (i + 1) * self.det_output_length], origin_h, origin_w)            
-
-        print("boxes: ", result_boxes)
-        print("scores: ", result_scores)
-        print("classid: ", result_classid)
 
         det_res = []
         for j in range(len(result_boxes)):
@@ -322,6 +319,12 @@ def parse_args():
         action="store_false",
         help="Disables annotation of frame",
     )    
+    # Skip 5 frames
+    parser.add_argument(
+        "--skip-frames",
+        action="store_true",
+        help="Enables skipping of 5 frames",
+    )
     args = parser.parse_args()
     return args
 
@@ -387,7 +390,7 @@ def calculate_overlap(box1, box2):
     
     return overlap
 
-def loitering_module(boxes, track_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age):
+def loitering_module(frame, boxes, track_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age):
     """
     Updates dwell time of detected objects across frames.
     Args:
@@ -414,14 +417,12 @@ def loitering_module(boxes, track_ids, clss, names, missed_detect, misses_cnt, d
         misses_cnt[track_id] = 0    #Reset misses_cnt to 0
         
         #Annotate video
-        """
         x1, y1, x2, y2 = box
         cls_name = class_names[int(cls)]
         xywh = [(x1 - x2 / 2), (y1 - y2 / 2), (x1 + x2 / 2), (y1 + y2 / 2)]
         label = "#{}:{}".format(track_id, dwell_time[track_id])
         annotator = Annotator(frame, line_width=1, example=names)
         annotator.box_label(xywh, label=label, color=colors(int(cls), True), txt_color=(255, 255, 255))
-        """
 
     # Check number of missed detections of each object
     if missed_detect:
@@ -464,7 +465,12 @@ def infer(input_sequence):
     model = LSTMModel(n_features, hidden_size=64)
 
     # Load the saved weights
-    model.load_state_dict(torch.load("./integration/lstm_model_0.485.pt"))
+    if skip_frames:
+        print ("Loading the lstm model for skipping frames")
+        lstm_model = "./integration/lstm_model_skip5_0.450.pt"
+    else:
+        lstm_model = "./integration/lstm_model_0.485.pt"
+    model.load_state_dict(torch.load(lstm_model))
     model.eval()  # Set the model to evaluation mode
 
     #input_data = input_sequence[:, 2:].astype(np.float32)
@@ -511,9 +517,8 @@ def process_video(source):
 
     # Global variables 
     global model, tracker, max_age
-    global frame_width, frame_height, capture_height, capture_width
-    # global font_scale, thickness, position, x_text, y_text, WIN_NAME
-    global display_vid, annotate
+    global frame_width, frame_height, capture_width, capture_height
+    global display_vid, skip_frames, annotate
     
     # Capture source
     if args.input == 'video':    
@@ -521,17 +526,13 @@ def process_video(source):
         frame_width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
         frame_height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
     else:
-        cap = cv.VideoCapture(gstreamer_pipeline(sensor_id=source,flip_method=0), cv.CAP_GSTREAMER)
-
+        cap = cv.VideoCapture(gstreamer_pipeline(sensor_id=source, flip_method=0), cv.CAP_GSTREAMER)
+        
     if not cap.isOpened():
         print(f"Error: Could not open {source}. Closing the program.")
         sys.exit()    
-        
-    #Display window properties
-    # font_scale = min(frame_width, frame_height) / 500
-    # thickness = max(1, int(font_scale * 2))
-    # x_text, y_text = position = (frame_width - 20, 20)
     
+    # Display window
     if display_vid:
         cv.namedWindow(WIN_NAME)
         cv.waitKey(1)
@@ -563,94 +564,96 @@ def process_video(source):
         frame_num += 1
 
         # # Skip frames
-        # if frame_num % 5 != 0:
+        # if skip_frames:
+        #     if frame_num % 2 != 0:
+        #         continue
+
+        # # YOLO Inference with TensorRT
+        # detections, t = model.Inference(frame)
+        # logger.info("Detections: {}".format(detections))
+        
+        # # Handle empty detection results
+        # if not detections:
+        #     print("No detections found!")
         #     continue
-
-        # YOLO Inference with TensorRT
-        detections, t = model.Inference(frame)
-        logger.info("Detections: {}".format(detections))
         
-        # Handle empty detection results
-        if not detections:
-            print("No detections found!")
-            continue
-        
-        # Format Conversion and Filtering
-        output = []   
-        boxes = []    
-        clss = []      
-        for i in range(len(detections)):          
-            box = detections[i]["box"]
-            conf = detections[i]["conf"]
-            cls = detections[i]["class_id"]
-            output.append([box[0], box[1], box[2], box[3], conf])       
-            boxes.append([box[0], box[1], box[2], box[3]])
-            clss.append(cls)
-        output = torch.tensor(output)
-        boxes = torch.tensor(boxes)
-        if args.input == 'video':
-            info_imgs = img_size = [frame_height, frame_width]
-        else:
-            info_imgs = img_size = [capture_height, capture_width]
+        # # Format Conversion and Filtering
+        # output = []   
+        # boxes = []    
+        # clss = []      
+        # for i in range(len(detections)):          
+        #     box = detections[i]["box"]
+        #     conf = detections[i]["conf"]
+        #     cls = detections[i]["class_id"]
+        #     output.append([box[0], box[1], box[2], box[3], conf])       
+        #     boxes.append([box[0], box[1], box[2], box[3]])
+        #     clss.append(cls)
+        # output = torch.tensor(output)
+        # boxes = torch.tensor(boxes)
+        # if args.input == 'video':
+        #     info_imgs = img_size = [frame_height, frame_width]
+        # else:
+        #     info_imgs = img_size = [capture_height, capture_width]
 
-        # Tracking
-        if len(output) != 0 :
-            # Call the ByteTracker.update method with the filtered detections, frame information, and image size.
-            online_targets = tracker.update(output, info_imgs, img_size)
+        # # Tracking
+        # if len(output) != 0 :
+        #     # Call the ByteTracker.update method with the filtered detections, frame information, and image size.
+        #     online_targets = tracker.update(output, info_imgs, img_size)
 
-            # Extracting  information about the tracked objects
-            online_boxes = []
-            online_ids = []    
+        #     # Extracting  information about the tracked objects
+        #     online_boxes = []
+        #     online_ids = []    
 
-            # Iterating through updated tracks
-            for t in online_targets:
-                tlwh = t.tlwh
-                tid = t.track_id
-                online_boxes.append(tlwh)
-                online_ids.append(tid)
-        online_boxes = torch.tensor(online_boxes)
+        #     # Iterating through updated tracks
+        #     for t in online_targets:
+        #         tlwh = t.tlwh
+        #         tid = t.track_id
+        #         online_boxes.append(tlwh)
+        #         online_ids.append(tid)
+        # online_boxes = torch.tensor(online_boxes)
 
-        #Crowd density module
-        crowd_density = crowd_density_module(online_boxes, frame)
+        # #Crowd density module
+        # crowd_density = crowd_density_module(online_boxes, frame)
 
-        #Concealment module
-        concealment_counts = concealment_module(clss)
+        # #Concealment module
+        # concealment_counts = concealment_module(clss)
 
-        #Loitering module
-        missed_detect, misses_cnt, dwell_time, loitering = loitering_module(online_boxes, online_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age)
+        # #Loitering module
+        # missed_detect, misses_cnt, dwell_time, loitering = loitering_module(frame, online_boxes, online_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age)
 
-        module_result.append([frame_num, 
-                crowd_density, 
-                loitering, 
-                concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
+        # module_result.append([frame_num, 
+        #         crowd_density, 
+        #         loitering, 
+        #         concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
 
             
-        if len(module_result) == 20:
-            # Make predictions
-            RBP = infer(module_result)
+        # if len(module_result) == 20:
+        #     # Make predictions
+        #     RBP = infer(module_result)
 
-        if fps_log:
-            if len(module_result) == 20:
-                module_result.clear()
+        # if display_vid and annotate:
+        #     frame = annotate_video(frame, RBP, fps=0)
 
-                # FPS Manual Calculation
-                fps_end_time = time.perf_counter()
-                time_diff = fps_end_time - fps_start_time
-                if time_diff == 0:
-                    manual_fps = 0.0
-                else:
-                    manual_fps = (20 / time_diff)
+        # if len(module_result) == 20:
+        #     module_result.clear()
 
-                with open(csv_file, 'a', newline='') as csvfile:
-                            csv_writer = csv.writer(csvfile)
-                            csv_writer.writerow([video_file, frame_num, manual_fps])
+            # if fps_log:
+            #     # FPS Manual Calculation
+            #     fps_end_time = time.perf_counter()
+            #     time_diff = fps_end_time - fps_start_time
+            #     if time_diff == 0:
+            #         manual_fps = 0.0
+            #     else:
+            #         manual_fps = (20 / time_diff)
 
-                fps_start_time = time.perf_counter()
+            #     with open(csv_file, 'a', newline='') as csvfile:
+            #                 csv_writer = csv.writer(csvfile)
+            #                 csv_writer.writerow([video_file, frame_num, manual_fps])
+
+            #     fps_start_time = time.perf_counter()
 
         # Video annotation
         if display_vid:
-            if annotate:
-                frame = annotate_video(frame, RBP, fps=0)
             cv.imshow(WIN_NAME, frame)
 
     cap.release()
@@ -708,8 +711,8 @@ if __name__ == "__main__":
     #---------------YOLOv8 & TensorRT---------------#
 
     # Load custom plugin and engine
-    PLUGIN_LIBRARY = "trt_integration/yolo_model/build_custom/libmyplugins.so"
-    engine_file_path = "trt_integration/yolo_model/build_custom/best_finalCustom.engine"    
+    PLUGIN_LIBRARY = "./trt_integration/yolo_model/build_custom/libmyplugins.so"
+    engine_file_path = "./trt_integration/yolo_model/build_custom/best_finalCustom.engine"    
 
     EXPLICIT_BATCH = 1 << (int)(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
 
@@ -730,17 +733,15 @@ if __name__ == "__main__":
     
     #--------------- Source---------------#
     if args.input == "video":
-        source = "integration/input-vid"
+        source = "./integration/input-vid"
     else:
         source = 0
 
     # For video
     frame_width = frame_height = fps = 0
     # For camera capture
-    capture_width=1920
-    capture_height=1080
-
-    #---------------Output---------------#
+    capture_width = 1920
+    capture_height = 1080
 
     #---------------Display window properties---------------#
 
@@ -796,7 +797,7 @@ if __name__ == "__main__":
     #---------------Performance Profiling---------------#
 
     # Peformance profiling
-    profiling_folder = 'trt_integration/profiling'  # Define the profiling folder
+    profiling_folder = './trt_integration/profiling'  # Define the profiling folder
 
     # Create the profiling folder if it doesn't exist
     if not os.path.exists(profiling_folder):
@@ -812,10 +813,28 @@ if __name__ == "__main__":
             csv_writer = csv.writer(csvfile)
             csv_writer.writerow(['filename', 'frame_num', 'fps'])
     
-    #---------------Profiling---------------#
-    profile_code = args.no_profile
+    #---------------Processing/Profiling---------------#
+    profile_code = args.no_profile 
+    skip_frames = args.skip_frames
 
-    if profile_code:
+    # No Profiling
+    if not profile_code:
+        if isinstance(source, int):
+            WIN_NAME = "RBP: Camera Feed"
+            process_video(source)
+            
+        elif isinstance(source, str):
+            #List of all video files in the folder_path
+            video_files = os.listdir(source)                    
+            
+            for video_file in video_files:
+                if video_file.endswith('.mp4'):
+                    WIN_NAME = f"RBP: {video_file}"
+                    video_path = os.path.join(source, video_file)
+                    process_video(video_path)
+
+    # With Profiling
+    else:
         if isinstance(source, int):
             try:
                 with cProfile.Profile() as pr:
@@ -857,19 +876,3 @@ if __name__ == "__main__":
             except Exception as e:
                 print(f"Profiling error: {e}")
 
-    #---------------No Profiling---------------#
-
-    else:
-        if isinstance(source, int):
-            WIN_NAME = "RBP: Camera Feed"
-            process_video(source)
-            
-        elif isinstance(source, str):
-            #List of all video files in the folder_path
-            video_files = os.listdir(source)                    
-            
-            for video_file in video_files:
-                if video_file.endswith('.mp4'):
-                    WIN_NAME = f"RBP: {video_file}"
-                    video_path = os.path.join(source, video_file)
-                    process_video(video_path)
