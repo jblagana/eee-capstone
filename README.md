@@ -14,7 +14,7 @@ python -m integration.main
 `--save-vid`        saves annotated video if enabled `default = 0` <br/>
 `--no-display`      disables playing of video while processing <br/>
 
-# Skipping by 4 frames
+### Skipping by 4 frames
 ```
 python -m integration.main_skipping --skip-frames 4
 ```
