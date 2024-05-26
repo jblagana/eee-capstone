@@ -523,6 +523,7 @@ def process_video(source):
     # Global variables 
     global model, tracker, max_age
     global frame_width, frame_height, capture_width, capture_height
+    global font_scale, thickness, position, x_text, y_text, WIN_NAME
     global display_vid, annotate, skip
     
     # Capture source
@@ -539,7 +540,7 @@ def process_video(source):
     
     # Display window
     if display_vid:
-        cv.namedWindow(WIN_NAME)
+        cv.namedWindow(WIN_NAME, cv.WINDOW_NORMAL)
         cv.waitKey(1)
 
     #Frame variables
@@ -579,6 +580,23 @@ def process_video(source):
         # Handle empty detection results
         if not detections:
             print("No detections found!")
+
+            if fps_log:
+                fps_end_time = time.perf_counter()
+                time_diff = fps_end_time - fps_start_time
+                if time_diff == 0:
+                    manual_fps = 0.0
+                else:
+                    manual_fps = (skip / time_diff)
+
+                with open(csv_file, 'a', newline='') as csvfile:
+                            csv_writer = csv.writer(csvfile)
+                            csv_writer.writerow([video_file, frame_num, manual_fps])
+
+                fps_start_time = time.perf_counter()
+
+            if display_vid:
+                cv.imshow(WIN_NAME, frame)
             continue
         
         # Format Conversion and Filtering
@@ -630,13 +648,13 @@ def process_video(source):
                 loitering, 
                 concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
 
+        # Make predictions every 20 frames
         if len(module_result) == 20:
-            # Make predictions
             RBP = infer(module_result)
             module_result.clear()
 
+        # FPS Manual Calculation
         if fps_log:
-            # FPS Manual Calculation
             fps_end_time = time.perf_counter()
             time_diff = fps_end_time - fps_start_time
             if time_diff == 0:
@@ -652,14 +670,15 @@ def process_video(source):
 
         if display_vid:
             if annotate:
-                frame = annotate_video(frame, RBP, fps=0)
+                frame = annotate_video(frame, RBP)
             cv.imshow(WIN_NAME, frame)
 
     cap.release()
     if display_vid:
         cv.destroyAllWindows()
 
-def annotate_video(frame, RBP, fps):
+
+def annotate_video(frame, RBP):
     global RBP_threshold, RBP_info
     global frame_width, frame_height
     global font, font_scale, thickness, position, x_text, y_text, size_text
@@ -669,10 +688,6 @@ def annotate_video(frame, RBP, fps):
     global persist
 
     frame = cv.resize(frame, (frame_width, frame_height))
-
-    # Display FPS
-    fps_txt = "FPS: {:.0f}".format(fps)
-    cv.putText(frame, fps_txt, (5, 30), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 1)
     
     # Display RBP
     RBP_text = RBP_info.format(RBP)
@@ -831,6 +846,7 @@ if __name__ == "__main__":
                     WIN_NAME = f"RBP: {video_file}"
                     video_path = os.path.join(source, video_file)
                     process_video(video_path)
+                    persist = 0
 
     # With Profiling
     else:
@@ -874,4 +890,3 @@ if __name__ == "__main__":
 
             except Exception as e:
                 print(f"Profiling error: {e}")
-

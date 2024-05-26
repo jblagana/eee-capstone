@@ -80,32 +80,61 @@ def process_video(source):
 
     # Global variables 
     global WIN_NAME
-    global display_vid
-    
+    global display_vid, frame_num
+
+    # Load custom plugin and engine
+    PLUGIN_LIBRARY = "./trt_integration/yolo_model/build_custom/libmyplugins.so"
+    engine_file_path = "./trt_integration/yolo_model/build_custom/best_finalCustom.engine"    
+
+    EXPLICIT_BATCH = 1 << (int)(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
+
     # Capture source
     if args.input == 'video':    
         cap = cv.VideoCapture(source)
     else:
-        cap = cv.VideoCapture(gstreamer_pipeline(sensor_id=source,flip_method=0), cv.CAP_GSTREAMER)
+        logger.info("Source: Camera")
+        cap = cv.VideoCapture(gstreamer_pipeline(), cv.CAP_GSTREAMER)
 
-    if not cap.isOpened():
+    # Initialize YOLOv8 Detector object using a TensorRT engine file 
+    model = YoloTRT(library=PLUGIN_LIBRARY, engine=engine_file_path, conf=0.5)
+
+    print("is cap opened?", cap.isOpened())
+
+    if cap.isOpened():
+        try:
+            cv.namedWindow(WIN_NAME, cv.WINDOW_AUTOSIZE)
+            while True:
+                frame_num += 1
+                logger.info("Frame Number: {}".format(frame_num))
+                
+                # Read a frame from the video capture
+                has_frame, frame = cap.read()
+
+                # Computations here
+
+                # YOLO Inference with TensorRT
+                detections, t = model.Inference(frame)
+                logger.info("Detections: {}".format(detections))
+                
+                # Handle empty detection results
+                if not detections:
+                    print("No detections found!")
+                    # continue
+                
+                print("This is before imshow")
+                cv.imshow(WIN_NAME, frame)
+                print("This is after imshow")
+
+                keyCode = cv.waitKey(10) & 0xFF
+                # Stop the program on the ESC key or 'q'
+                if keyCode == 27 or keyCode == ord('q'):
+                    break
+        finally:
+            cap.release()
+            cv.destroyAllWindows()
+    else:
         print(f"Error: Could not open {source}. Closing the program.")
-        sys.exit()    
-
-    if display_vid:
-        cv.namedWindow(WIN_NAME, cv.WINDOW_NORMAL)
-        cv.waitKey(1)
-
-    # Iterate through each frame of the video        
-    while cv.waitKey(1) != 27: #ESC key
-        # Read a frame from the video capture
-        has_frame, frame = cap.read()
-        if not has_frame:
-            break  
-
-    cap.release()
-    if display_vid:
-        cv.destroyAllWindows()
+        sys.exit() 
         
 if __name__ == "__main__":
 
@@ -114,7 +143,12 @@ if __name__ == "__main__":
     args = parse_args()
     # Log the command-line args for reference
     logger.info("Args: {}".format(args))
-    
+
+    #---------------YOLOv8 & TensorRT---------------#
+
+
+
+
     #--------------- Source---------------#
     if args.input == "video":
         source = "integration/input-vid"
@@ -124,6 +158,7 @@ if __name__ == "__main__":
     #---------------Display window properties---------------#
 
     display_vid = args.no_display
+    frame_num = 0
     
     #---------------Processing the source---------------#
 
