@@ -340,19 +340,19 @@ def annotate_video(frame, RBP):
     frame = cv.resize(frame, (frame_width, frame_height))
     
     # Display RBP
-    # RBP_text = RBP_info.format(RBP)
+    RBP_text = RBP_info.format(RBP)
 
     if RBP > RBP_threshold:
         persist = 1
-    #     text_color = (0, 0, 128)  # Red color
-    # else:
-    #     text_color = (0, 128, 0)   # Green color
+        text_color = (0, 0, 128)  # Red color
+    else:
+        text_color = (0, 128, 0)   # Green color
 
-    # # Draw white background rectangle
-    # cv.rectangle(frame, (x_rect, y_rect), (x_rect + width_rect, y_rect + height_rect), (255, 255, 255), -1)
+    # Draw white background rectangle
+    cv.rectangle(frame, (x_rect, y_rect), (x_rect + width_rect, y_rect + height_rect), (255, 255, 255), -1)
     
-    # # Add text on top of the rectangle
-    # cv.putText(frame, RBP_text, (x_text, y_text), font, font_scale, text_color, thickness, cv.LINE_AA)
+    # Add text on top of the rectangle
+    cv.putText(frame, RBP_text, (x_text, y_text), font, font_scale, text_color, thickness, cv.LINE_AA)
 
     # WARNING SIGN
     if persist:
@@ -477,7 +477,7 @@ if __name__ == "__main__":
     #---------------Display window properties---------------#
     display_vid = args.no_display
     RBP_info = ("RBP: {:.2f}")
-    RBP_threshold = 0.461
+    RBP_threshold = 0.453
     persist = 0
     font = cv.FONT_HERSHEY_SIMPLEX
 
