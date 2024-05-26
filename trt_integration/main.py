@@ -529,21 +529,16 @@ def process_video(source):
     # Capture source
     if args.input == 'video':    
         cap = cv.VideoCapture(source)
-        frame_width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
-        frame_height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
-        if display_vid:
-            cv.namedWindow(WIN_NAME, cv.WINDOW_NORMAL)
-            cv.waitKey(1)
-
     else:
         cap = cv.VideoCapture(gstreamer_pipeline(sensor_id=source, flip_method=0), cv.CAP_GSTREAMER)
-        if display_vid:
-            cv.namedWindow(WIN_NAME, cv.WINDOW_AUTOSIZE)
-            cv.waitKey(1)
-        
+            
     if not cap.isOpened():
         print(f"Error: Could not open {source}. Closing the program.")
         sys.exit()    
+
+    if display_vid:
+        cv.namedWindow(WIN_NAME, cv.WINDOW_AUTOSIZE)
+        cv.waitKey(1)
 
     #Frame variables
     frame_num = 0
@@ -598,6 +593,8 @@ def process_video(source):
                 fps_start_time = time.perf_counter()
 
             if display_vid:
+                if annotate:
+                    frame = annotate_video(frame, RBP)
                 cv.imshow(WIN_NAME, frame)
             continue
         
@@ -773,6 +770,7 @@ if __name__ == "__main__":
         RBP_threshold = 0.471
     elif skip == 5:
         RBP_threshold = 0.450
+    logger.info("RBP Threshold: {}".format(RBP_threshold))
 
     persist = 0
     font = cv.FONT_HERSHEY_SIMPLEX

@@ -9,3 +9,5 @@ integration/lstm_model_0.485.pt
 integration/lstm_model_skip5_0.450.pt
 integration/lstm_model_skip4_0.471.pt
 yolo_model/best_finalCustom.pt
+trt_integration/lstm_model
+trt_integration/yolo_model
