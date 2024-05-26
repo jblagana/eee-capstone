@@ -167,7 +167,7 @@ def infer(input_sequence):
     model = LSTMModel(n_features, hidden_size=64)
 
     # Load the saved weights
-    model.load_state_dict(torch.load('inference\LSTM_v2\lstm_models\lstm_model_skip4_0.461.pt'))
+    model.load_state_dict(torch.load('inference\LSTM_v2\lstm_models\lstm_model_skip4_0.453.pt'))
     model.eval()  # Set the model to evaluation mode
 
     #input_data = input_sequence[:, 2:].astype(np.float32)
