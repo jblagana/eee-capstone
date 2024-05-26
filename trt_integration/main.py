@@ -135,7 +135,7 @@ class YoloTRT():
             det["conf"] = result_scores[j]
             det["box"] = box            
             det_res.append(det)
-            # self.PlotBbox(box, img, label="{}:{:.2f}".format(self.categories[int(result_classid[j])], result_scores[j]),)
+            self.PlotBbox(box, img, color = colors(int(result_classid[j]), True), label="{}:{:.2f}".format(self.categories[int(result_classid[j])], result_scores[j]),)
         
         return det_res, t2-t1
 
@@ -267,7 +267,7 @@ class YoloTRT():
     
     def PlotBbox(self, x, img, color=None, label=None, line_thickness=None):
         tl = (line_thickness or round(0.002 * (img.shape[0] + img.shape[1]) / 2) + 1)  # line/font thickness
-        color = color or [random.randint(0, 255) for _ in range(3)]
+        # color = color or [random.randint(0, 255) for _ in range(3)]
         c1, c2 = (int(x[0]), int(x[1])), (int(x[2]), int(x[3]))
         cv.rectangle(img, c1, c2, color, thickness=tl, lineType=cv.LINE_AA)
         if label:
@@ -531,17 +531,19 @@ def process_video(source):
         cap = cv.VideoCapture(source)
         frame_width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
         frame_height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
+        if display_vid:
+            cv.namedWindow(WIN_NAME, cv.WINDOW_NORMAL)
+            cv.waitKey(1)
+
     else:
         cap = cv.VideoCapture(gstreamer_pipeline(sensor_id=source, flip_method=0), cv.CAP_GSTREAMER)
+        if display_vid:
+            cv.namedWindow(WIN_NAME, cv.WINDOW_AUTOSIZE)
+            cv.waitKey(1)
         
     if not cap.isOpened():
         print(f"Error: Could not open {source}. Closing the program.")
         sys.exit()    
-    
-    # Display window
-    if display_vid:
-        cv.namedWindow(WIN_NAME, cv.WINDOW_NORMAL)
-        cv.waitKey(1)
 
     #Frame variables
     frame_num = 0
