@@ -15,6 +15,7 @@ import sys
 import threading
 import torch
 import time
+import pickle
 
 from argparse import ArgumentParser
 from tqdm import tqdm
@@ -24,8 +25,6 @@ from ultralytics.utils.plotting import Annotator, colors
 import torch
 import torch.nn as nn
 import numpy as np
-from sklearn.preprocessing import StandardScaler
-scaler = StandardScaler()
 
 def concealment_module(class_list):
     """
@@ -168,12 +167,16 @@ def infer(input_sequence):
     model = LSTMModel(n_features, hidden_size=64)
 
     # Load the saved weights
-    model.load_state_dict(torch.load('./integration/lstm_model_skip5_0.450.pt'))
+    model.load_state_dict(torch.load('inference\LSTM_v2\lstm_models\lstm_model_skip4_0.461.pt'))
     model.eval()  # Set the model to evaluation mode
 
     #input_data = input_sequence[:, 2:].astype(np.float32)
     input_data = input_sequence[:, 1:].astype(np.float32)   #Updated array slicing
-    input_data_scaled = scaler.fit_transform(input_data)
+
+    with open('inference\LSTM_v2\scaler\scaler_skip4.pkl','rb') as file: # load scaler from training phase
+        scaler = pickle.load(file)
+
+    input_data_scaled = scaler.transform(input_data)
     input_data = torch.tensor(input_data_scaled, dtype=torch.float32)
 
     # Make predictions
@@ -405,7 +408,7 @@ def parse_args():
         #Output video destination
         #Display window
         #Save log file
-    parser.skip_frames(
+    parser.add_argument(
         "--skip-frames",
         type=int,
         default=1,
@@ -474,7 +477,7 @@ if __name__ == "__main__":
     #---------------Display window properties---------------#
     display_vid = args.no_display
     RBP_info = ("RBP: {:.2f}")
-    RBP_threshold = 0.45
+    RBP_threshold = 0.461
     persist = 0
     font = cv.FONT_HERSHEY_SIMPLEX
 
