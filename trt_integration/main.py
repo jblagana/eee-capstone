@@ -763,9 +763,17 @@ if __name__ == "__main__":
 
     display_vid = args.no_display
     annotate = args.no_annotate
+    skip = int(args.skip_frames)
 
     RBP_info = ("RBP: {:.2f}")
-    RBP_threshold = 0.485
+
+    if skip == 1:
+        RBP_threshold = 0.485
+    elif skip == 4:
+        RBP_threshold = 0.471
+    elif skip == 5:
+        RBP_threshold = 0.450
+
     persist = 0
     font = cv.FONT_HERSHEY_SIMPLEX
 
@@ -831,7 +839,6 @@ if __name__ == "__main__":
     
     #---------------Processing/Profiling---------------#
     profile_code = args.no_profile 
-    skip = int(args.skip_frames)
 
     # No Profiling
     if not profile_code:
