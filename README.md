@@ -16,9 +16,7 @@ python -m integration.main
 
 ## YOLOv8-ByteTrack with TensorRT
 ```
-# preload libgomp
-LD_PRELOAD=/home/robbers/venv/lib/python3.8/site-packages/scikit_learn.libs/libgomp-d22c30c5.so.1.0.0
-# run trt_integration
+LD_PRELOAD=/home/robbers/venv/lib/python3.8/site-packages/scikit_learn.libs/libgomp-d22c30c5.so.1.0.0    # preload libgomp
 python -m trt_integration.main
 ```
 > [!TIP]
