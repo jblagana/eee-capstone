@@ -16,15 +16,20 @@ python -m integration.main
 
 ## YOLOv8-ByteTrack with TensorRT
 ```
+# preload libgomp
+LD_PRELOAD=/home/robbers/venv/lib/python3.8/site-packages/scikit_learn.libs/libgomp-d22c30c5.so.1.0.0
+# run trt_integration
 python -m trt_integration.main
 ```
 > [!TIP]
 **arguments**: <br/>
 `--input`        input type: 'video' or 'webcam' `default = 'video'` <br/>
-`--yolomodel`    YOLO model: 'custom', 'v8n', 'v7t', 'v5n' `default = 'custom'` <br/>
 `--max-age`      maximum consecutive missed detections before deleting ID `default = 500` <br/>
-`--save-vid`     saves annotated video if enabled (1) `default = 0`  <br/>
+`--skip-frames`  enables skipping of frames by input number `default = 1` (no skip) <br/>
 `--no-display`   disables playing of video while processing <br/>
+`--no-profile`   disables profiling of code <br/>
+`--no-fps-log`   disables logging of fps <br/>
+`--no-annotate`  disables annotation of frame <br/>
 
 ## Displaying Evaluation Plots (FPS, resource consumption, profiles)
 ```
