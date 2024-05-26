@@ -21,7 +21,7 @@ python -m trt_integration.main
 ```
 > [!TIP]
 **arguments**: <br/>
-`--input`        input type: 'video' or 'webcam' `default = 'video'` <br/>
+`--input`        input type: 'video' or 0/1 (CSI camera) `default = 'video'` <br/>
 `--max-age`      maximum consecutive missed detections before deleting ID `default = 500` <br/>
 `--skip-frames`  enables skipping of frames by input number `default = 1` (no skip) <br/>
 `--no-display`   disables playing of video while processing <br/>
