@@ -468,13 +468,13 @@ def infer(input_sequence):
     # Load the saved weights
     if skip == 5:
         print ("Loading the lstm model for skipping 5 frames")
-        lstm_model = "./integration/lstm_model_skip5_0.450.pt"
+        lstm_model = "./trt_integration/lstm_model/lstm_model_skip5_0.450.pt"
     elif skip == 4:
         print ("Loading the lstm model for skipping 4 frames")
-        lstm_model = "./integration/lstm_model_skip4_0.471.pt"       
+        lstm_model = "./trt_integration/lstm_model/lstm_model_skip4_0.471.pt"       
     else:
         print ("Loading the lstm model for NOT skipping frames")
-        lstm_model = "./integration/lstm_model_0.485.pt"
+        lstm_model = "./trt_integration/lstm_model/lstm_model_0.485.pt"
     model.load_state_dict(torch.load(lstm_model))
     model.eval()  # Set the model to evaluation mode
 
@@ -727,8 +727,8 @@ if __name__ == "__main__":
     #---------------YOLOv8 & TensorRT---------------#
 
     # Load custom plugin and engine
-    PLUGIN_LIBRARY = "./trt_integration/yolo_model/build_custom/libmyplugins.so"
-    engine_file_path = "./trt_integration/yolo_model/build_custom/best_finalCustom.engine"    
+    PLUGIN_LIBRARY = "./trt_integration/yolo_model/libmyplugins.so"
+    engine_file_path = "./trt_integration/yolo_model/best_finalCustom.engine"    
 
     EXPLICIT_BATCH = 1 << (int)(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
 
