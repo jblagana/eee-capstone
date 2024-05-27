@@ -27,6 +27,9 @@ import torch
 import torch.nn as nn
 import numpy as np
 
+with open('inference\LSTM_v2\scaler\scaler_skip4.pkl','rb') as file: # load scaler from training phase
+    scaler = pickle.load(file)
+
 def concealment_module(class_list):
     """
     Detects concealment levels and counts instances for each class.
@@ -174,9 +177,7 @@ def infer(input_sequence):
 
     #input_data = input_sequence[:, 2:].astype(np.float32)
     input_data = input_sequence[:, 1:].astype(np.float32)   #Updated array slicing
-    with open('inference\LSTM_v2\scaler\scaler_skip4.pkl','rb') as file: # load scaler from training phase
-        scaler = pickle.load(file)
-
+    
     input_data_scaled = scaler.transform(input_data)
     input_data = torch.tensor(input_data_scaled, dtype=torch.float32)
 
