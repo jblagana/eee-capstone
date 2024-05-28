@@ -1,8 +1,6 @@
 """
 NOTES:
     -skipping frames variable in MAIN under "Skipping frames"
-        -skip - set to 1 if no skipping
-        -default (atm: set to 4)
 """
 
 import csv
@@ -12,14 +10,12 @@ import numpy as np
 import os
 import pickle
 import pstats
-import random
 import sys
 import threading
 import torch
 import time
 
 from argparse import ArgumentParser
-from tqdm import tqdm
 from ultralytics import YOLO
 from ultralytics.utils.plotting import Annotator, colors
 
@@ -27,7 +23,8 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-with open('inference\LSTM_v2\scaler\scaler_skip4.pkl','rb') as file: # load scaler from training phase
+#with open('inference/scaler/scaler_skip4.pkl','rb') as file: # load scaler from training phase
+with open('inference/scaler/scaler_noskip.pkl','rb') as file:
     scaler = pickle.load(file)
 
 def concealment_module(class_list):
@@ -170,8 +167,11 @@ def infer(input_sequence):
     model = LSTMModel(n_features, hidden_size=64)
 
     # Load the saved weights
-    #model.load_state_dict(torch.load('./integration/lstm_model_0.485.pt'))
-    model.load_state_dict(torch.load('inference\LSTM_v2\lstm_models\lstm_model_skip4_0.453.pt'))
+    model.load_state_dict(torch.load('./integration/lstm_model_noskip_0.465.pt'))   #No Skip
+    #model.load_state_dict(torch.load('inference/lstm_model_skip2_0.451.pt'))        #Skip = 2
+    #model.load_state_dict(torch.load('inference/lstm_model_skip3____.pt'))        #Skip = 3
+    #model.load_state_dict(torch.load('inference/lstm_model_skip4_0.453.pt'))        #Skip = 4
+    #model.load_state_dict(torch.load('inference/lstm_model_skip5_0.450.pt'))        #Skip = 5
     model.eval()  # Set the model to evaluation mode
 
     #input_data = input_sequence[:, 2:].astype(np.float32)
@@ -235,10 +235,6 @@ def process_video(source, filename):
     if isinstance(source, str):
         fps = int(cap.get(cv.CAP_PROP_FPS))
 
-        #Initialize progress bar
-        # total_frames = int(cap.get(cv.CAP_PROP_FRAME_COUNT))
-        # progress_bar = tqdm(total=total_frames, desc=f"Video {source} ")
-
     manual_fps = 0.0 
     fps_start_time = time.perf_counter()
 
@@ -261,7 +257,6 @@ def process_video(source, filename):
         if len(frames) == 20:
             results = model.track(frames, persist=True, verbose=False, tracker=bytetrack_path)
             for i in range(20):
-                #print(results[i])
                 if results[i].boxes.id is not None:
                     boxes = results[i].boxes.xywh.cpu() 
                     track_ids = results[i].boxes.id.int().cpu().tolist()
@@ -440,7 +435,18 @@ if __name__ == "__main__":
     max_age = args.max_age
 
     #---------------Skipping frames---------------#
-    skip = 4
+    skip = 1
+    #skip = 2
+    #skip = 3
+    #skip = 4
+    #skip = 5
+
+    #---------------RBP Thresholds---------------#
+    RBP_threshold = 0.465       #No Skip
+    #RBP_threshold = 0.451       #Skip = 2
+    #RBP_threshold = 0.451       #Skip = 3
+    #RBP_threshold = 0.453       #Skip = 4
+    #RBP_threshold = 0.450       #Skip = 5
 
     #---------------Source---------------#
     try:
@@ -466,13 +472,12 @@ if __name__ == "__main__":
     #---------------Display window properties---------------#
     display_vid = args.no_display
     RBP_info = ("RBP: {:.2f}")
-    RBP_threshold = 0.485
     persist = 0
     font = cv.FONT_HERSHEY_SIMPLEX
 
     frame_width = 320       #240 by 320 pixels
     frame_height = 240
-    frame_area = 320*240
+    frame_area = frame_width * frame_height
     font_scale = min(frame_width, frame_height) / 500
     thickness = max(1, int(font_scale * 2))
     x_text, y_text = position = (frame_width - 20, 20)
@@ -520,7 +525,7 @@ if __name__ == "__main__":
         os.makedirs(profiling_folder)
 
     # CSV file to log fps
-    csv_file = os.path.join(profiling_folder, 'fps_log-cpu-batch_skip.csv')
+    csv_file = os.path.join(profiling_folder, 'fps_log-cpu.csv')
     with open(csv_file, 'w', newline='') as csvfile:
         csv_writer = csv.writer(csvfile)
         csv_writer.writerow(['filename', 'frame_num', 'fps'])
@@ -546,7 +551,7 @@ if __name__ == "__main__":
                     if video_file.endswith('.mp4'): 
                         WIN_NAME = f"RBP: {video_file}"
                         video_path = os.path.join(source, video_file)
-                        
+        
                         process_video(video_path, video_file)
                         persist = 0
 
@@ -559,7 +564,7 @@ if __name__ == "__main__":
 
             # Save the profiling stats in the profiling folder
             # stats.print_stats()
-            profile_filename = os.path.join(profiling_folder, f"profiling_total-batch_skip.prof")
+            profile_filename = os.path.join(profiling_folder, f"profiling-cpu.prof")
             stats.dump_stats(filename=profile_filename)
 
         except Exception as e:
