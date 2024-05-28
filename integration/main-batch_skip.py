@@ -23,8 +23,8 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-#with open('inference/scaler/scaler_skip4.pkl','rb') as file: # load scaler from training phase
-with open('inference/scaler/scaler_noskip.pkl','rb') as file:
+#with open('./inference/LSTM_v2/scaler/scaler_skip4.pkl','rb') as file: # load scaler from training phase
+with open('./inference/LSTM_v2/scaler/scaler_noskip.pkl','rb') as file:
     scaler = pickle.load(file)
 
 def concealment_module(class_list):
@@ -167,11 +167,11 @@ def infer(input_sequence):
     model = LSTMModel(n_features, hidden_size=64)
 
     # Load the saved weights
-    model.load_state_dict(torch.load('./integration/lstm_model_noskip_0.465.pt'))   #No Skip
-    #model.load_state_dict(torch.load('inference/lstm_model_skip2_0.451.pt'))        #Skip = 2
-    #model.load_state_dict(torch.load('inference/lstm_model_skip3____.pt'))        #Skip = 3
-    #model.load_state_dict(torch.load('inference/lstm_model_skip4_0.453.pt'))        #Skip = 4
-    #model.load_state_dict(torch.load('inference/lstm_model_skip5_0.450.pt'))        #Skip = 5
+    model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models/lstm_model_noskip_0.465.pt'))   #No Skip
+    #model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models/lstm_model_skip2_0.451.pt'))        #Skip = 2
+    #model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models/lstm_model_skip3____.pt'))        #Skip = 3
+    #model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models/lstm_model_skip4_0.453.pt'))        #Skip = 4
+    #model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models/lstm_model_skip5_0.450.pt'))        #Skip = 5
     model.eval()  # Set the model to evaluation mode
 
     #input_data = input_sequence[:, 2:].astype(np.float32)
