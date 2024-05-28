@@ -48,22 +48,21 @@ def concealment_module(class_list):
         concealment_counts[int(class_id)] += 1
     return np.array(concealment_counts)
 
-def crowd_density_module(boxes, frame):
+def crowd_density_module(boxes):
     """
     Calculate crowd density based on bounding boxes and the current frame
 
     Args:
         boxes (list): list of bounding boxes from the detection results
-        frame: current frame to be processed
     Output:
         crowd_density (float): crowd density value
     """
-    
+    global frame_area
     segmented_area = 0
     crowd_density = 0
 
-    img = frame
-    frame_area = img.shape[0]*img.shape[1]
+    #img = frame
+    #frame_area = img.shape[0]*img.shape[1]
     existing_boxes = []
 
     for box in boxes:
@@ -254,6 +253,7 @@ def process_video(source, filename):
         
         frame_num += 1
         if frame_num % skip == 0:
+            frame = cv.resize(frame, (frame_width, frame_height))
             frames.append(frame)
             frames_cnt.append(frame_num)
 
@@ -271,7 +271,7 @@ def process_video(source, filename):
                     boxes, track_ids, clss, names = [[] for _ in range(4)]
                 
                 #Crowd density module
-                crowd_density = crowd_density_module(boxes, frames[i])
+                crowd_density = crowd_density_module(boxes)
                 
                 #Concealment module
                 concealment_counts = concealment_module(clss)
@@ -331,7 +331,7 @@ def annotate_video(frame, RBP, fps):
     global w_text_size, w_text_x, w_text_y, w_rect_x, w_rect_y, w_width_rect, w_height_rect
     global persist
 
-    frame = cv.resize(frame, (frame_width, frame_height))
+    #frame = cv.resize(frame, (frame_width, frame_height))
 
     # Display RBP
     RBP_text = RBP_info.format(RBP)
@@ -470,8 +470,9 @@ if __name__ == "__main__":
     persist = 0
     font = cv.FONT_HERSHEY_SIMPLEX
 
-    frame_width = 640       #360p: 640x360 pixels
-    frame_height = 360
+    frame_width = 320       #240 by 320 pixels
+    frame_height = 240
+    frame_area = 320*240
     font_scale = min(frame_width, frame_height) / 500
     thickness = max(1, int(font_scale * 2))
     x_text, y_text = position = (frame_width - 20, 20)
