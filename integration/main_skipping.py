@@ -186,7 +186,7 @@ def infer(input_sequence):
 
     return RBP
 
-def process_video(source, filename):
+def process_video(source):
     #Global variables 
     global yolo_path, bytetrack_path, max_age
     global skip
@@ -201,13 +201,13 @@ def process_video(source, filename):
         sys.exit()
     
     
-    if save_vid:
-        cap_out = cv.VideoWriter(
-            output_path + "/annotated-" + filename, 
-            cv.VideoWriter_fourcc(*'MP4V'), 
-            cap.get(cv.CAP_PROP_FPS),
-            (frame_width, frame_height)
-        )
+    # if save_vid:
+    #     cap_out = cv.VideoWriter(
+    #         output_path + "/annotated-" + filename, 
+    #         cv.VideoWriter_fourcc(*'MP4V'), 
+    #         cap.get(cv.CAP_PROP_FPS),
+    #         (frame_width, frame_height)
+    #     )
 
     if display_vid:
         cv.namedWindow(WIN_NAME, cv.WINDOW_NORMAL)
@@ -283,7 +283,8 @@ def process_video(source, filename):
                     concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
 
                 
-            if (len(module_result) == 20) and (not persist):
+            # if (len(module_result) == 20) and (not persist):
+            if len(module_result) == 20:
                 # Make predictions
                 RBP = infer(module_result)
                 module_result.clear()
@@ -298,7 +299,7 @@ def process_video(source, filename):
 
             with open(csv_file, 'a', newline='') as csvfile:
                         csv_writer = csv.writer(csvfile)
-                        csv_writer.writerow([video_file, frame_num, manual_fps])
+                        csv_writer.writerow(["video_file", frame_num, manual_fps])
 
             fps_start_time = time.perf_counter()
 
@@ -543,7 +544,7 @@ if __name__ == "__main__":
         stats = pstats.Stats(pr)
         stats.sort_stats(pstats.SortKey.TIME)
         #stats.print_stats()
-        stats.dump_stats(filename="needs_profiling.prof")
+        # stats.dump_stats(filename="needs_profiling.prof")
 
     elif isinstance(source, str):
         #List of all video files in the folder_path
@@ -556,7 +557,7 @@ if __name__ == "__main__":
                         WIN_NAME = f"RBP: {video_file}"
                         video_path = os.path.join(source, video_file)
                         
-                        process_video(video_path, video_file)
+                        process_video(video_path)
                         persist = 0
 
                     else:
