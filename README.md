@@ -14,6 +14,11 @@ python -m integration.main
 `--save-vid`        saves annotated video if enabled `default = 0` <br/>
 `--no-display`      disables playing of video while processing <br/>
 
+### Skipping by 4 frames
+```
+python -m integration.main_skipping --skip-frames 4
+```
+
 ## YOLOv8-ByteTrack with TensorRT
 ```
 LD_PRELOAD=/home/robbers/venv/lib/python3.8/site-packages/scikit_learn.libs/libgomp-d22c30c5.so.1.0.0    # preload libgomp

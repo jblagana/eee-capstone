@@ -15,6 +15,7 @@ import sys
 import threading
 import torch
 import time
+import pickle
 
 from argparse import ArgumentParser
 from tqdm import tqdm
@@ -24,8 +25,6 @@ from ultralytics.utils.plotting import Annotator, colors
 import torch
 import torch.nn as nn
 import numpy as np
-from sklearn.preprocessing import StandardScaler
-scaler = StandardScaler()
 
 def concealment_module(class_list):
     """
@@ -168,12 +167,16 @@ def infer(input_sequence):
     model = LSTMModel(n_features, hidden_size=64)
 
     # Load the saved weights
-    model.load_state_dict(torch.load('./integration/lstm_model_skip5_0.450.pt'))
+    model.load_state_dict(torch.load('inference\LSTM_v2\lstm_models\lstm_model_skip4_0.453.pt'))
     model.eval()  # Set the model to evaluation mode
 
     #input_data = input_sequence[:, 2:].astype(np.float32)
     input_data = input_sequence[:, 1:].astype(np.float32)   #Updated array slicing
-    input_data_scaled = scaler.fit_transform(input_data)
+
+    with open('inference\LSTM_v2\scaler\scaler_skip4.pkl','rb') as file: # load scaler from training phase
+        scaler = pickle.load(file)
+
+    input_data_scaled = scaler.transform(input_data)
     input_data = torch.tensor(input_data_scaled, dtype=torch.float32)
 
     # Make predictions
@@ -183,7 +186,7 @@ def infer(input_sequence):
 
     return RBP
 
-def process_video(source, filename):
+def process_video(source):
     #Global variables 
     global yolo_path, bytetrack_path, max_age
     global skip
@@ -198,13 +201,13 @@ def process_video(source, filename):
         sys.exit()
     
     
-    if save_vid:
-        cap_out = cv.VideoWriter(
-            output_path + "/annotated-" + filename, 
-            cv.VideoWriter_fourcc(*'MP4V'), 
-            cap.get(cv.CAP_PROP_FPS),
-            (frame_width, frame_height)
-        )
+    # if save_vid:
+    #     cap_out = cv.VideoWriter(
+    #         output_path + "/annotated-" + filename, 
+    #         cv.VideoWriter_fourcc(*'MP4V'), 
+    #         cap.get(cv.CAP_PROP_FPS),
+    #         (frame_width, frame_height)
+    #     )
 
     if display_vid:
         cv.namedWindow(WIN_NAME, cv.WINDOW_NORMAL)
@@ -280,7 +283,8 @@ def process_video(source, filename):
                     concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
 
                 
-            if (len(module_result) == 20) and (not persist):
+            # if (len(module_result) == 20) and (not persist):
+            if len(module_result) == 20:
                 # Make predictions
                 RBP = infer(module_result)
                 module_result.clear()
@@ -295,7 +299,7 @@ def process_video(source, filename):
 
             with open(csv_file, 'a', newline='') as csvfile:
                         csv_writer = csv.writer(csvfile)
-                        csv_writer.writerow([video_file, frame_num, manual_fps])
+                        csv_writer.writerow(["video_file", frame_num, manual_fps])
 
             fps_start_time = time.perf_counter()
 
@@ -337,19 +341,19 @@ def annotate_video(frame, RBP):
     frame = cv.resize(frame, (frame_width, frame_height))
     
     # Display RBP
-    # RBP_text = RBP_info.format(RBP)
+    RBP_text = RBP_info.format(RBP)
 
     if RBP > RBP_threshold:
         persist = 1
-    #     text_color = (0, 0, 128)  # Red color
-    # else:
-    #     text_color = (0, 128, 0)   # Green color
+        text_color = (0, 0, 128)  # Red color
+    else:
+        text_color = (0, 128, 0)   # Green color
 
-    # # Draw white background rectangle
-    # cv.rectangle(frame, (x_rect, y_rect), (x_rect + width_rect, y_rect + height_rect), (255, 255, 255), -1)
+    # Draw white background rectangle
+    cv.rectangle(frame, (x_rect, y_rect), (x_rect + width_rect, y_rect + height_rect), (255, 255, 255), -1)
     
-    # # Add text on top of the rectangle
-    # cv.putText(frame, RBP_text, (x_text, y_text), font, font_scale, text_color, thickness, cv.LINE_AA)
+    # Add text on top of the rectangle
+    cv.putText(frame, RBP_text, (x_text, y_text), font, font_scale, text_color, thickness, cv.LINE_AA)
 
     # WARNING SIGN
     if persist:
@@ -405,7 +409,7 @@ def parse_args():
         #Output video destination
         #Display window
         #Save log file
-    parser.skip_frames(
+    parser.add_argument(
         "--skip-frames",
         type=int,
         default=1,
@@ -474,7 +478,7 @@ if __name__ == "__main__":
     #---------------Display window properties---------------#
     display_vid = args.no_display
     RBP_info = ("RBP: {:.2f}")
-    RBP_threshold = 0.45
+    RBP_threshold = 0.453
     persist = 0
     font = cv.FONT_HERSHEY_SIMPLEX
 
@@ -540,7 +544,7 @@ if __name__ == "__main__":
         stats = pstats.Stats(pr)
         stats.sort_stats(pstats.SortKey.TIME)
         #stats.print_stats()
-        stats.dump_stats(filename="needs_profiling.prof")
+        # stats.dump_stats(filename="needs_profiling.prof")
 
     elif isinstance(source, str):
         #List of all video files in the folder_path
@@ -553,7 +557,7 @@ if __name__ == "__main__":
                         WIN_NAME = f"RBP: {video_file}"
                         video_path = os.path.join(source, video_file)
                         
-                        process_video(video_path, video_file)
+                        process_video(video_path)
                         persist = 0
 
                     else:
