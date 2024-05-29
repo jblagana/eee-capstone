@@ -8,7 +8,7 @@ import time
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="jtop logger")
-    parser.add_argument("--file", action="store", dest="file", default="resoure_log-jetson.csv")
+    parser.add_argument("--file", action="store", dest="file", default="trt_integration/profiling/resoure_log-jetson.csv")
     args = parser.parse_args()
 
     print("Simple jtop logger")
