@@ -5,9 +5,8 @@ env3.10_gpu
 env3.8
 env3.11
 integration/input-vid
-integration/lstm_model_0.485.pt
-integration/lstm_model_skip5_0.450.pt
-integration/lstm_model_skip4_0.471.pt
-yolo_model/best_finalCustom.pt
+integration/lstm_model/
 trt_integration/lstm_model
+yolo_model/best_finalCustom.pt
 trt_integration/yolo_model
+inference/LSTM_v2/lstm_models/

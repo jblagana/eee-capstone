@@ -25,7 +25,7 @@ import torch.nn as nn
 import numpy as np
 
 #with open('./inference/LSTM_v2/scaler/scaler_skip4.pkl','rb') as file: # load scaler from training phase
-with open('./inference/LSTM_v2/scaler/scaler_noskip.pkl','rb') as file:
+with open('./inference/LSTM_v2/scaler/v1.3.2/scaler_skip1.pkl','rb') as file:
     scaler = pickle.load(file)
     
     
