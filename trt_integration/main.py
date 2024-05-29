@@ -765,9 +765,13 @@ if __name__ == "__main__":
     RBP_info = ("RBP: {:.2f}")
 
     if skip == 1:
-        RBP_threshold = 0.485
+        RBP_threshold = 0.465
+    elif skip == 2:
+        RBP_threshold = 0.451
+    # elif skip == 3:
+    #    RBP_threshold = 0.453
     elif skip == 4:
-        RBP_threshold = 0.471
+        RBP_threshold = 0.453
     elif skip == 5:
         RBP_threshold = 0.450
     logger.info("RBP Threshold: {}".format(RBP_threshold))
