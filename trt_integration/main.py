@@ -575,10 +575,10 @@ def process_video(source, filename):
             output = []   
             boxes = []    
             clss = []      
-            for i in range(len(detections)):          
-                box = detections[i]["box"]
-                conf = detections[i]["conf"]
-                cls = detections[i]["class_id"]
+            for detection in detections:      
+                box = detection["box"]
+                conf = detection["conf"]
+                cls = detection["class_id"]
                 output.append([box[0], box[1], box[2], box[3], conf])       
                 boxes.append([box[0], box[1], box[2], box[3]])
                 clss.append(cls)
