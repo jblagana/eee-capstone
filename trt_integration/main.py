@@ -301,12 +301,6 @@ def parse_args():
         action="store_false",
         help="Disables playing of video while processing. Default = True.",
     )
-    # Profiling
-    parser.add_argument(
-        "--no-profile",
-        action="store_false",
-        help="Disables profiling of code.",
-    )
     # FPS Logging
     parser.add_argument(
         "--no-fps-log",
@@ -517,7 +511,7 @@ def gstreamer_pipeline(
         )
     )
 
-def process_video(source):
+def process_video(source, filename):
     """Performs real-time object detection and tracking on a video."""
 
     # Global variables 
@@ -573,84 +567,66 @@ def process_video(source):
         # YOLO Inference with TensorRT
         detections, t = model.Inference(frame)
         logger.info("Detections: {}".format(detections))
-        
-        # Handle empty detection results
-        if not detections:
+
+        # If detection results is not empty
+        if detections:
+            
+            # Format Conversion and Filtering
+            output = []   
+            boxes = []    
+            clss = []      
+            for i in range(len(detections)):          
+                box = detections[i]["box"]
+                conf = detections[i]["conf"]
+                cls = detections[i]["class_id"]
+                output.append([box[0], box[1], box[2], box[3], conf])       
+                boxes.append([box[0], box[1], box[2], box[3]])
+                clss.append(cls)
+            output = torch.tensor(output)
+            boxes = torch.tensor(boxes)
+            if args.input == 'video':
+                info_imgs = img_size = [frame_height, frame_width]
+            else:
+                info_imgs = img_size = [capture_height, capture_width]
+
+            # Tracking
+            if len(output) != 0 :
+                # Call the ByteTracker.update method with the filtered detections, frame information, and image size.
+                online_targets = tracker.update(output, info_imgs, img_size)
+
+                # Extracting  information about the tracked objects
+                online_boxes = []
+                online_ids = []    
+
+                # Iterating through updated tracks
+                for t in online_targets:
+                    tlwh = t.tlwh
+                    tid = t.track_id
+                    online_boxes.append(tlwh)
+                    online_ids.append(tid)
+            online_boxes = torch.tensor(online_boxes)
+
+            #Crowd density module
+            crowd_density = crowd_density_module(online_boxes, frame)
+
+            #Concealment module
+            concealment_counts = concealment_module(clss)
+
+            #Loitering module
+            missed_detect, misses_cnt, dwell_time, loitering = loitering_module(frame, online_boxes, online_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age)
+
+            module_result.append([frame_num, 
+                    crowd_density, 
+                    loitering, 
+                    concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
+
+            # Make predictions every 20 frames
+            if len(module_result) == 20:
+                RBP = infer(module_result)
+                module_result.clear()
+            
+        elif not detections:
             print("No detections found!")
-
-            if fps_log:
-                fps_end_time = time.perf_counter()
-                time_diff = fps_end_time - fps_start_time
-                if time_diff == 0:
-                    manual_fps = 0.0
-                else:
-                    manual_fps = (skip / time_diff)
-
-                with open(csv_file, 'a', newline='') as csvfile:
-                            csv_writer = csv.writer(csvfile)
-                            csv_writer.writerow([video_file, frame_num, manual_fps])
-
-                fps_start_time = time.perf_counter()
-
-            if display_vid:
-                if annotate:
-                    frame = annotate_video(frame, RBP)
-                cv.imshow(WIN_NAME, frame)
-            continue
-        
-        # Format Conversion and Filtering
-        output = []   
-        boxes = []    
-        clss = []      
-        for i in range(len(detections)):          
-            box = detections[i]["box"]
-            conf = detections[i]["conf"]
-            cls = detections[i]["class_id"]
-            output.append([box[0], box[1], box[2], box[3], conf])       
-            boxes.append([box[0], box[1], box[2], box[3]])
-            clss.append(cls)
-        output = torch.tensor(output)
-        boxes = torch.tensor(boxes)
-        if args.input == 'video':
-            info_imgs = img_size = [frame_height, frame_width]
-        else:
-            info_imgs = img_size = [capture_height, capture_width]
-
-        # Tracking
-        if len(output) != 0 :
-            # Call the ByteTracker.update method with the filtered detections, frame information, and image size.
-            online_targets = tracker.update(output, info_imgs, img_size)
-
-            # Extracting  information about the tracked objects
-            online_boxes = []
-            online_ids = []    
-
-            # Iterating through updated tracks
-            for t in online_targets:
-                tlwh = t.tlwh
-                tid = t.track_id
-                online_boxes.append(tlwh)
-                online_ids.append(tid)
-        online_boxes = torch.tensor(online_boxes)
-
-        #Crowd density module
-        crowd_density = crowd_density_module(online_boxes, frame)
-
-        #Concealment module
-        concealment_counts = concealment_module(clss)
-
-        #Loitering module
-        missed_detect, misses_cnt, dwell_time, loitering = loitering_module(frame, online_boxes, online_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age)
-
-        module_result.append([frame_num, 
-                crowd_density, 
-                loitering, 
-                concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
-
-        # Make predictions every 20 frames
-        if len(module_result) == 20:
-            RBP = infer(module_result)
-            module_result.clear()
 
         # FPS Manual Calculation
         if fps_log:
@@ -663,7 +639,7 @@ def process_video(source):
 
             with open(csv_file, 'a', newline='') as csvfile:
                         csv_writer = csv.writer(csvfile)
-                        csv_writer.writerow([video_file, frame_num, manual_fps])
+                        csv_writer.writerow([filename, frame_num, manual_fps])
 
             fps_start_time = time.perf_counter()
 
@@ -840,64 +816,43 @@ if __name__ == "__main__":
             csv_writer.writerow(['filename', 'frame_num', 'fps'])
     
     #---------------Processing/Profiling---------------#
-    profile_code = args.no_profile 
 
-    # No Profiling
-    if not profile_code:
-        if isinstance(source, int):
-            WIN_NAME = "RBP: Camera Feed"
-            process_video(source)
-            
-        elif isinstance(source, str):
-            #List of all video files in the folder_path
-            video_files = os.listdir(source)                    
-            
-            for video_file in video_files:
-                if video_file.endswith('.mp4'):
-                    WIN_NAME = f"RBP: {video_file}"
-                    video_path = os.path.join(source, video_file)
-                    process_video(video_path)
-                    persist = 0
-
-    # With Profiling
-    else:
-        if isinstance(source, int):
-            try:
-                with cProfile.Profile() as pr:
-                    WIN_NAME = "RBP: Camera Feed"
-                    process_video(source)
-                stats = pstats.Stats(pr)
-                stats.sort_stats(pstats.SortKey.TIME)
-                #stats.print_stats()
-                profile_filename = os.path.join(profiling_folder, f"profiling_total.prof")
-                stats.dump_stats(filename=profile_filename)
+    if isinstance(source, int):
+        try:
+            with cProfile.Profile() as pr:
+                WIN_NAME = "RBP: Camera Feed"
+                process_video(source, 'camera')
+            stats = pstats.Stats(pr)
+            stats.sort_stats(pstats.SortKey.TIME)
+            #stats.print_stats()
+            profile_filename = os.path.join(profiling_folder, f"profiling_total.prof")
+            stats.dump_stats(filename=profile_filename)
                 
-            except Exception as e:
-                print(f"Profiling error: {e}")
+        except Exception as e:
+            print(f"Profiling error: {e}")
                 
-        elif isinstance(source, str):
-            #List of all video files in the folder_path
-            video_files = os.listdir(source)
+    elif isinstance(source, str):
+        #List of all video files in the folder_path
+        video_files = os.listdir(source)
+        try:
+            with cProfile.Profile() as pr:
+                for video_file in video_files:
+                    if video_file.endswith('.mp4'): 
+                        WIN_NAME = f"RBP: {video_file}"
+                        video_path = os.path.join(source, video_file)
+                        process_video(video_path)
+                        persist = 0
+                    else:
+                        print("Invalid source.")
+                        sys.exit()
 
-            try:
-                with cProfile.Profile() as pr:
-                    for video_file in video_files:
-                        if video_file.endswith('.mp4'): 
-                            WIN_NAME = f"RBP: {video_file}"
-                            video_path = os.path.join(source, video_file)
-                            process_video(video_path)
-                            persist = 0
-                        else:
-                            print("Invalid source.")
-                            sys.exit()
+            stats = pstats.Stats(pr)
+            stats.sort_stats(pstats.SortKey.TIME)
 
-                stats = pstats.Stats(pr)
-                stats.sort_stats(pstats.SortKey.TIME)
+            # Save the profiling stats in the profiling folder
+            # stats.print_stats()
+            profile_filename = os.path.join(profiling_folder, f"profiling_total.prof")
+            stats.dump_stats(filename=profile_filename)
 
-                # Save the profiling stats in the profiling folder
-                # stats.print_stats()
-                profile_filename = os.path.join(profiling_folder, f"profiling_total.prof")
-                stats.dump_stats(filename=profile_filename)
-
-            except Exception as e:
-                print(f"Profiling error: {e}")
+        except Exception as e:
+            print(f"Profiling error: {e}")
