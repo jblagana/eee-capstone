@@ -652,7 +652,7 @@ def process_video(source):
             online_boxes = torch.tensor(online_boxes)
 
             #Crowd density module
-            crowd_density = crowd_density_module(online_boxes, frame)
+            crowd_density = crowd_density_module(online_boxes)
 
             #Concealment module
             concealment_counts = concealment_module(clss)

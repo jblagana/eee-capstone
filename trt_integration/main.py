@@ -466,16 +466,16 @@ def infer(input_sequence):
     model = LSTMModel(n_features, hidden_size=64)
 
     # Load the saved weights
-    if skip == 5:
-        print ("Loading the lstm model for skipping 5 frames")
-        lstm_model = "./trt_integration/lstm_model/lstm_model_skip5_0.450.pt"
+    if skip == 1:
+        model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models/lstm_model_noskip_0.465.pt'))   #No Skip
+    elif skip == 2:
+        model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models/lstm_model_skip2_0.451.pt'))        #Skip = 2
+    elif skip == 3:
+        model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models/lstm_model_skip3____.pt'))        #Skip = 3
     elif skip == 4:
-        print ("Loading the lstm model for skipping 4 frames")
-        lstm_model = "./trt_integration/lstm_model/lstm_model_skip4_0.471.pt"       
-    else:
-        print ("Loading the lstm model for NOT skipping frames")
-        lstm_model = "./trt_integration/lstm_model/lstm_model_0.485.pt"
-    model.load_state_dict(torch.load(lstm_model))
+        model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models/lstm_model_skip4_0.453.pt'))        #Skip = 4
+    elif skip == 5:
+        model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models/lstm_model_skip5_0.450.pt'))        #Skip = 5
     model.eval()  # Set the model to evaluation mode
 
     #input_data = input_sequence[:, 2:].astype(np.float32)
