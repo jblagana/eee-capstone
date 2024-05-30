@@ -14,6 +14,7 @@ from loguru import logger
 import pycuda.autoinit  # noqa: F401
 import pycuda.driver as cuda
 import tensorrt as trt
+import threading
 
 from trt_integration.bytetrack.byte_tracker import BYTETracker
 from ultralytics.utils.plotting import Annotator, colors
@@ -652,6 +653,21 @@ def process_video(source, filename):
     if display_vid:
         cv.destroyAllWindows()
 
+def reset_persist():
+    """Function to reset the persist variable"""
+    global persist
+    if persist == 1:
+        persist = 0
+        print("Persist reset to 0")
+
+def set_persist(value, delay):
+    """Function to set persist and start the timer"""
+    global persist
+    persist = value
+    if value == 1:
+        print("Persist set to 1")
+        timer = threading.Timer(delay, reset_persist)
+        timer.start()
 
 def annotate_video(frame, RBP):
     global RBP_threshold, RBP_info
@@ -668,10 +684,11 @@ def annotate_video(frame, RBP):
     RBP_text = RBP_info.format(RBP)
 
     if RBP > RBP_threshold:
-        persist = 1
-        text_color = (0, 0, 128)  # Red color
+        set_persist(1, 5)           # Set persist to 1 and reset it after 5 seconds
+        # persist = 1
+        text_color = (0, 0, 128)    # Red color
     else:
-        text_color = (0, 128, 0)   # Green color
+        text_color = (0, 128, 0)    # Green color
 
     # Draw white background rectangle
     cv.rectangle(frame, (x_rect, y_rect), (x_rect + width_rect, y_rect + height_rect), (255, 255, 255), -1)
