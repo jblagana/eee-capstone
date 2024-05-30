@@ -24,7 +24,7 @@ import torch.nn as nn
 import numpy as np
 
 #with open('./inference/LSTM_v2/scaler/scaler_skip4.pkl','rb') as file: # load scaler from training phase
-with open('./inference/LSTM_v2/scaler/v1.3.2/scaler_skip1.pkl','rb') as file:
+with open('./inference/LSTM_v2/scaler/v1.3.2/scaler_skip5.pkl','rb') as file:
     scaler = pickle.load(file)
 
 def concealment_module(class_list):
@@ -167,11 +167,13 @@ def infer(input_sequence):
     model = LSTMModel(n_features, hidden_size=64)
 
     # Load the saved weights
-    model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models/lstm_model_noskip_0.465.pt'))   #No Skip
+    # model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models/lstm_model_noskip_0.465.pt'))   #No Skip
     #model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models/lstm_model_skip2_0.451.pt'))        #Skip = 2
     #model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models/lstm_model_skip3____.pt'))        #Skip = 3
     #model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models/lstm_model_skip4_0.453.pt'))        #Skip = 4
     #model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models/lstm_model_skip5_0.450.pt'))        #Skip = 5
+    model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models_v2/lstm_model_skip5_0.456.pt'))        #Skip = 5
+    
     model.eval()  # Set the model to evaluation mode
 
     #input_data = input_sequence[:, 2:].astype(np.float32)
@@ -435,18 +437,18 @@ if __name__ == "__main__":
     max_age = args.max_age
 
     #---------------Skipping frames---------------#
-    skip = 1
+    # skip = 1
     #skip = 2
     #skip = 3
     #skip = 4
-    #skip = 5
+    skip = 5
 
     #---------------RBP Thresholds---------------#
-    RBP_threshold = 0.465       #No Skip
+    # RBP_threshold = 0.465       #No Skip
     #RBP_threshold = 0.451       #Skip = 2
     #RBP_threshold = 0.421       #Skip = 3
     #RBP_threshold = 0.453       #Skip = 4
-    #RBP_threshold = 0.456       #Skip = 5
+    RBP_threshold = 0.456       #Skip = 5
 
     #---------------Source---------------#
     try:
