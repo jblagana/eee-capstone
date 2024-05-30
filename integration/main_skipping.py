@@ -167,13 +167,13 @@ def infer(input_sequence):
     model = LSTMModel(n_features, hidden_size=64)
 
     # Load the saved weights
-    model.load_state_dict(torch.load('inference\LSTM_v2\lstm_models\lstm_model_skip4_0.453.pt'))
+    model.load_state_dict(torch.load(f'inference\LSTM_v2\lstm_models_v2\lstm_model_skip{skip}_{RBP_threshold}.pt'))
     model.eval()  # Set the model to evaluation mode
 
     #input_data = input_sequence[:, 2:].astype(np.float32)
     input_data = input_sequence[:, 1:].astype(np.float32)   #Updated array slicing
 
-    with open('inference\LSTM_v2\scaler\scaler_skip4.pkl','rb') as file: # load scaler from training phase
+    with open(f'inference/LSTM_v2/scaler/v1.3.2/scaler_skip{skip}.pkl','rb') as file: # load scaler from training phase
         scaler = pickle.load(file)
 
     input_data_scaled = scaler.transform(input_data)
@@ -477,8 +477,19 @@ if __name__ == "__main__":
 
     #---------------Display window properties---------------#
     display_vid = args.no_display
-    RBP_info = ("RBP: {:.2f}")
-    RBP_threshold = 0.453
+    RBP_info = ("RBP: {:.3f}")
+
+    if skip == 1:
+        RBP_threshold = 0.465
+    elif skip == 2:
+        RBP_threshold = 0.451
+    elif skip == 3:
+        RBP_threshold = 0.421        
+    elif skip == 4:
+        RBP_threshold = 0.453
+    elif skip == 5:
+        RBP_threshold = 0.456
+
     persist = 0
     font = cv.FONT_HERSHEY_SIMPLEX
 

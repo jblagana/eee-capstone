@@ -23,9 +23,6 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-#with open('./inference/LSTM_v2/scaler/scaler_skip4.pkl','rb') as file: # load scaler from training phase
-with open('./inference/LSTM_v2/scaler/v1.3.2/scaler_skip5.pkl','rb') as file:
-    scaler = pickle.load(file)
 
 def concealment_module(class_list):
     """
@@ -172,7 +169,7 @@ def infer(input_sequence):
     #model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models/lstm_model_skip3____.pt'))        #Skip = 3
     #model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models/lstm_model_skip4_0.453.pt'))        #Skip = 4
     #model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models/lstm_model_skip5_0.450.pt'))        #Skip = 5
-    model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models_v2/lstm_model_skip5_0.456.pt'))        #Skip = 5
+    model.load_state_dict(torch.load(f'./inference/LSTM_v2/lstm_models/lstm_model_skip{skip}_{RBP_threshold}.pt'))        #Skip = 5
     
     model.eval()  # Set the model to evaluation mode
 
@@ -440,15 +437,26 @@ if __name__ == "__main__":
     # skip = 1
     #skip = 2
     #skip = 3
-    #skip = 4
+    # skip = 4
     skip = 5
 
     #---------------RBP Thresholds---------------#
-    # RBP_threshold = 0.465       #No Skip
-    #RBP_threshold = 0.451       #Skip = 2
-    #RBP_threshold = 0.421       #Skip = 3
-    #RBP_threshold = 0.453       #Skip = 4
-    RBP_threshold = 0.456       #Skip = 5
+    if skip == 1:
+        RBP_threshold = 0.465
+    elif skip == 2:
+        RBP_threshold = 0.451
+    elif skip == 3:
+        RBP_threshold = 0.421        
+    elif skip == 4:
+        RBP_threshold = 0.453
+    elif skip == 5:
+        RBP_threshold = 0.456
+
+    #---------------Feature Scaling---------------#
+
+    #with open('./inference/LSTM_v2/scaler/scaler_skip4.pkl','rb') as file: # load scaler from training phase
+    with open(f'./inference/LSTM_v2/scaler/v1.3.2/scaler_skip{skip}.pkl','rb') as file:
+        scaler = pickle.load(file)
 
     #---------------Source---------------#
     try:
@@ -473,7 +481,7 @@ if __name__ == "__main__":
 
     #---------------Display window properties---------------#
     display_vid = args.no_display
-    RBP_info = ("RBP: {:.2f}")
+    RBP_info = ("RBP: {:.3f}")
     persist = 0
     font = cv.FONT_HERSHEY_SIMPLEX
 
