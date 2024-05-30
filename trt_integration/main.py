@@ -766,7 +766,7 @@ if __name__ == "__main__":
     elif skip == 4:
         RBP_threshold = 0.453
     elif skip == 5:
-        RBP_threshold = 0.450
+        RBP_threshold = 0.456
     logger.info("RBP Threshold: {}".format(RBP_threshold))
 
     persist = 0
