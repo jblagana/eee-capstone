@@ -24,7 +24,7 @@ import torch.nn as nn
 import numpy as np
 
 #with open('./inference/LSTM_v2/scaler/scaler_skip4.pkl','rb') as file: # load scaler from training phase
-with open('./inference/LSTM_v2/scaler/scaler_noskip.pkl','rb') as file:
+with open('./inference/LSTM_v2/scaler/v1.3.2/scaler_skip1.pkl','rb') as file:
     scaler = pickle.load(file)
 
 def concealment_module(class_list):
@@ -525,7 +525,7 @@ if __name__ == "__main__":
         os.makedirs(profiling_folder)
 
     # CSV file to log fps
-    csv_file = os.path.join(profiling_folder, 'fps_log-cpu.csv')
+    csv_file = os.path.join(profiling_folder, 'fps_log.csv')
     with open(csv_file, 'w', newline='') as csvfile:
         csv_writer = csv.writer(csvfile)
         csv_writer.writerow(['filename', 'frame_num', 'fps'])
@@ -564,7 +564,7 @@ if __name__ == "__main__":
 
             # Save the profiling stats in the profiling folder
             # stats.print_stats()
-            profile_filename = os.path.join(profiling_folder, f"profiling-cpu.prof")
+            profile_filename = os.path.join(profiling_folder, f"profiling.prof")
             stats.dump_stats(filename=profile_filename)
 
         except Exception as e:
