@@ -9,29 +9,33 @@ import pandas as pd
 import numpy as np
 
 def display_fps():
-    parsed_data = []
-    csv_file = os.path.join(profiling_folder, "fps_log.csv")
-    with open(csv_file, 'r', newline='') as csvfile:
-        csv_reader = csv.reader(csvfile)
-        next(csv_reader)  # Skip header row
-        for row in csv_reader:
-            filename, frame_num, fps = row
-            frame_num = int(frame_num)
-            fps = float(fps)
-            parsed_data.append((filename, frame_num, fps))
+    # Iterate through files in the directory
+    for file_name in os.listdir(profiling_folder):
+        if "fps_log" in file_name and file_name.endswith('.csv'):
+            title = os.path.splitext(file_name)[0]
 
-    # Plot FPS data
-    plt.figure()
-    for filename, frame_num, fps in parsed_data:
-        plt.scatter(frame_num, fps, label=filename, marker='.', s=7)
+            # Parse and plot data
+            parsed_data = []
+            csv_file = os.path.join(profiling_folder, file_name)
+            with open(csv_file, 'r', newline='') as csvfile:
+                csv_reader = csv.reader(csvfile)
+                next(csv_reader)  # Skip header row
+                for row in csv_reader:
+                    filename, frame_num, fps = row
+                    frame_num = int(frame_num)
+                    fps = float(fps)
+                    parsed_data.append((filename, frame_num, fps))
 
-    plt.xlabel('Frame Number')
-    plt.ylabel('FPS')
-    plt.title('FPS of Video Files')
-    # plt.legend()
-    # plt.show()
-    # Save the plot as an image
-    plt.savefig('trt_integration/profiling/fps_log.png')
+            # Plot FPS data
+            plt.figure()
+            for filename, frame_num, fps in parsed_data:
+                plt.scatter(frame_num, fps, label=filename, marker='.', s=7)
+
+            plt.xlabel('Frame Number')
+            plt.ylabel('FPS')
+            plt.title(title)
+            plt.savefig(f'trt_integration/profiling/{title}.png')
+            # plt.show()
 
 
 def display_statistics():
@@ -98,7 +102,7 @@ def display_resource_jetson():
         plt.tight_layout()
         plt.savefig('trt_integration/profiling/resource_jetson.png')
         # plt.show()
-        
+
     except Exception:
         pass
 

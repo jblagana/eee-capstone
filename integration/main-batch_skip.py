@@ -525,7 +525,7 @@ if __name__ == "__main__":
         os.makedirs(profiling_folder)
 
     # CSV file to log fps
-    csv_file = os.path.join(profiling_folder, 'fps_log.csv')
+    csv_file = os.path.join(profiling_folder, f'fps_log_skip{skip}.csv')
     with open(csv_file, 'w', newline='') as csvfile:
         csv_writer = csv.writer(csvfile)
         csv_writer.writerow(['filename', 'frame_num', 'fps'])

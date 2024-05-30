@@ -8,95 +8,103 @@ import subprocess
 import pandas as pd
 import numpy as np
 
+import os
+
 def display_fps():
-    parsed_data = []
-    csv_file = os.path.join(profiling_folder, "fps_log.csv")
-    with open(csv_file, 'r', newline='') as csvfile:
-        csv_reader = csv.reader(csvfile)
-        next(csv_reader)  # Skip header row
-        for row in csv_reader:
-            filename, frame_num, fps = row
-            frame_num = int(frame_num)
-            fps = float(fps)
-            parsed_data.append((filename, frame_num, fps))
+    # Iterate through files in the directory
+    for file_name in os.listdir(profiling_folder):
+        if "fps_log" in file_name and file_name.endswith('.csv'):
+            title = os.path.splitext(file_name)[0]
 
-    # Plot FPS data
-    plt.figure()
-    for filename, frame_num, fps in parsed_data:
-        plt.scatter(frame_num, fps, label=filename, marker='.', s=7)
+            # Parse and plot data
+            parsed_data = []
+            csv_file = os.path.join(profiling_folder, file_name)
+            with open(csv_file, 'r', newline='') as csvfile:
+                csv_reader = csv.reader(csvfile)
+                next(csv_reader)  # Skip header row
+                for row in csv_reader:
+                    filename, frame_num, fps = row
+                    frame_num = int(frame_num)
+                    fps = float(fps)
+                    parsed_data.append((filename, frame_num, fps))
 
-    plt.xlabel('Frame Number')
-    plt.ylabel('FPS')
-    plt.title('FPS of Video Files')
-    # plt.legend()
-    plt.show()
-    # Save the plot as an image
-    # plt.savefig('integration/profiling/fps_log.png')
+            # Plot FPS data
+            plt.figure()
+            for filename, frame_num, fps in parsed_data:
+                plt.scatter(frame_num, fps, label=filename, marker='.', s=7)
+
+            plt.xlabel('Frame Number')
+            plt.ylabel('FPS')
+            plt.title(title)  # Set title with file name
+            plt.savefig(f'integration/profiling/{title}.png')
+            # plt.show()
 
 
 def display_statistics():
-# Displaying block statistics
-    # profiles = os.listdir(profiling_folder)
-    # for profile in profiles:
-    #     if profile.endswith(".prof"):
-    #         subprocess.Popen(["snakeviz", os.path.join(profiling_folder, profile)])
-
-    subprocess.Popen(["snakeviz", os.path.join(profiling_folder, "profiling_total.prof")])
+    # Displaying block statistics
+    try:
+        subprocess.Popen(["snakeviz", os.path.join(profiling_folder, "profiling_total.prof")])
+    except Exception:
+        pass
 
 
 def display_resource_jetson():
     # Display resource consumption
-    time = []
-    cpu_usage = []
-    gpu_usage = []
-    memory_usage = []
-    power_usage = []
+    try:
+        time = []
+        cpu_usage = []
+        gpu_usage = []
+        memory_usage = []
+        power_usage = []
 
-    # Open the CSV file
-    csv_file_path = os.path.join(profiling_folder, "resource_log-Jetson.csv")
-    with open(csv_file_path, 'r') as file:
-        csv_reader = csv.reader(file)
-        header = next(csv_reader)  # Skip the header row
-        for i, row in enumerate(csv_reader):
-            time.append(i) # index is in unit seconds
-            cpu_usage.append(sum(map(float, row[2:6])) / 4)
-            gpu_usage.append(float(row[10]))
-            memory_usage.append(float(row[6]))
-            power_usage.append(float(row[25]))
+        # Open the CSV file
+        csv_file_path = os.path.join(profiling_folder, "resource_log-Jetson.csv")
+        with open(csv_file_path, 'r') as file:
+            csv_reader = csv.reader(file)
+            header = next(csv_reader)  # Skip the header row
+            for i, row in enumerate(csv_reader):
+                time.append(i) # index is in unit seconds
+                cpu_usage.append(sum(map(float, row[2:6])) / 4)
+                gpu_usage.append(float(row[10]))
+                memory_usage.append(float(row[6]))
+                power_usage.append(float(row[25]))
 
-    # Create a 2x2 subplot
-    fig, axs = plt.subplots(2, 2, figsize=(9, 6))
+        # Create a 2x2 subplot
+        fig, axs = plt.subplots(2, 2, figsize=(9, 6))
 
-    # Plot CPU usage
-    axs[0, 0].plot(time, cpu_usage, label="CPU")
-    axs[0, 0].set_title("CPU Usage")
-    axs[0, 0].set_ylabel("Usage (%)")
-    axs[0, 0].legend()
+        # Plot CPU usage
+        axs[0, 0].plot(time, cpu_usage, label="CPU")
+        axs[0, 0].set_title("CPU Usage")
+        axs[0, 0].set_ylabel("Usage (%)")
+        axs[0, 0].legend()
 
-    # Plot GPU usage
-    axs[0, 1].plot(time, gpu_usage, label="GPU")
-    axs[0, 1].set_title("GPU Usage")
-    axs[0, 1].set_ylabel("Usage (%)")
-    axs[0, 1].legend()
+        # Plot GPU usage
+        axs[0, 1].plot(time, gpu_usage, label="GPU")
+        axs[0, 1].set_title("GPU Usage")
+        axs[0, 1].set_ylabel("Usage (%)")
+        axs[0, 1].legend()
 
-    # Plot memory usage
-    axs[1, 0].plot(time, memory_usage, label="Memory")
-    axs[1, 0].set_title("Memory Usage")
-    axs[1, 0].set_xlabel("Time (s)")
-    axs[1, 0].set_ylabel("Usage (%)")
-    axs[1, 0].legend()
+        # Plot memory usage
+        axs[1, 0].plot(time, memory_usage, label="Memory")
+        axs[1, 0].set_title("Memory Usage")
+        axs[1, 0].set_xlabel("Time (s)")
+        axs[1, 0].set_ylabel("Usage (%)")
+        axs[1, 0].legend()
 
-    # Plot power usage
-    axs[1, 1].plot(time, power_usage, label="Power")
-    axs[1, 1].set_title("Power Usage")
-    axs[1, 1].set_xlabel("Time (s)")
-    axs[1, 1].set_ylabel("Usage (Watts)")
-    axs[1, 1].legend()
+        # Plot power usage
+        axs[1, 1].plot(time, power_usage, label="Power")
+        axs[1, 1].set_title("Power Usage")
+        axs[1, 1].set_xlabel("Time (s)")
+        axs[1, 1].set_ylabel("Usage (Watts)")
+        axs[1, 1].legend()
 
-    # Adjust layout
-    plt.tight_layout()
-    plt.savefig('trt_integration/profiling/resource_jetson.png')
-    # plt.show()
+        # Adjust layout
+        plt.tight_layout()
+        plt.savefig('trt_integration/profiling/resource_jetson.png')
+        # plt.show()
+
+    except Exception:
+        pass
 
 def display_resource():
     # Display resource consumption
