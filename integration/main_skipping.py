@@ -10,7 +10,6 @@ import cProfile
 import numpy as np
 import os
 import pstats
-import random
 import sys
 import threading
 import torch
@@ -18,7 +17,6 @@ import time
 import pickle
 
 from argparse import ArgumentParser
-from tqdm import tqdm
 from ultralytics import YOLO
 from ultralytics.utils.plotting import Annotator, colors
 
@@ -44,22 +42,22 @@ def concealment_module(class_list):
         concealment_counts[int(class_id)] += 1
     return np.array(concealment_counts)
 
-def crowd_density_module(boxes, frame):
+def crowd_density_module(boxes):
     """
     Calculate crowd density based on bounding boxes and the current frame
 
     Args:
         boxes (list): list of bounding boxes from the detection results
-        frame: current frame to be processed
     Output:
         crowd_density (float): crowd density value
     """
-    
+    global frame_area
     segmented_area = 0
     crowd_density = 0
+    
 
-    img = frame
-    frame_area = img.shape[0]*img.shape[1]
+    #img = frame
+    #frame_area = img.shape[0]*img.shape[1]
     existing_boxes = []
 
     for box in boxes:
@@ -173,9 +171,6 @@ def infer(input_sequence):
     #input_data = input_sequence[:, 2:].astype(np.float32)
     input_data = input_sequence[:, 1:].astype(np.float32)   #Updated array slicing
 
-    with open(f'inference/LSTM_v2/scaler/v1.3.2/scaler_skip{skip}.pkl','rb') as file: # load scaler from training phase
-        scaler = pickle.load(file)
-
     input_data_scaled = scaler.transform(input_data)
     input_data = torch.tensor(input_data_scaled, dtype=torch.float32)
 
@@ -186,7 +181,7 @@ def infer(input_sequence):
 
     return RBP
 
-def process_video(source):
+def process_video(source, filename):
     #Global variables 
     global yolo_path, bytetrack_path, max_age
     global skip
@@ -201,13 +196,13 @@ def process_video(source):
         sys.exit()
     
     
-    # if save_vid:
-    #     cap_out = cv.VideoWriter(
-    #         output_path + "/annotated-" + filename, 
-    #         cv.VideoWriter_fourcc(*'MP4V'), 
-    #         cap.get(cv.CAP_PROP_FPS),
-    #         (frame_width, frame_height)
-    #     )
+    if save_vid:
+        cap_out = cv.VideoWriter(
+            output_path + "/annotated-" + filename,
+            cv.VideoWriter_fourcc(*'MP4V'),
+            cap.get(cv.CAP_PROP_FPS),
+            (frame_width, frame_height)
+        )
 
     if display_vid:
         cv.namedWindow(WIN_NAME, cv.WINDOW_NORMAL)
@@ -231,10 +226,6 @@ def process_video(source):
     
     if isinstance(source, str):
         fps = int(cap.get(cv.CAP_PROP_FPS))
-
-        #Initialize progress bar
-        # total_frames = int(cap.get(cv.CAP_PROP_FRAME_COUNT))
-        # progress_bar = tqdm(total=total_frames, desc=f"Video {source} ")
 
     manual_fps = 0.0 
     fps_start_time = time.perf_counter()
@@ -262,7 +253,7 @@ def process_video(source):
                 boxes, track_ids, clss, names = [[] for _ in range(4)]
             
             #Crowd density module
-            crowd_density = crowd_density_module(boxes, frame)
+            crowd_density = crowd_density_module(boxes)
             
             #Concealment module
             concealment_counts = concealment_module(clss)
@@ -315,14 +306,6 @@ def process_video(source):
             if save_vid:
                 cap_out.write(frame)
 
-        #Progress bar for video
-        # if isinstance(source, str):
-        #     progress_bar.update(1)
-
-        
-    
-    # if isinstance(source, str):
-    #     progress_bar.close()   
     cap.release()
     if save_vid:
         cap_out.release()
@@ -455,31 +438,7 @@ if __name__ == "__main__":
     bytetrack_path = args.bytetrack_path
     max_age = args.max_age
 
-    #---------------Source---------------#
-    try:
-        source = int(args.source)
-    except ValueError:
-        source = args.source  # If conversion fails, it's a string
-    frame_width = frame_height = fps = 0
-    
-    #---------------Output Video---------------#
-    try:
-        save_vid = int(args.save_vid)
-    except ValueError:
-        save_vid = True
-        output_path = args.save_vid
-        os.makedirs(output_path, exist_ok=True)  # Create the output folder if it doesn't exist
-
-    #output_video_path = "out.mp4"
-    #TO DO: writing output video    
-    #cap_out = cv.VideoWriter(output_video_path, cv.VideoWriter_fourcc(*'MP4V'), cap.get(cv.CAP_PROP_FPS),
-            #(frame.shape[1], frame.shape[0]))
-
-
-    #---------------Display window properties---------------#
-    display_vid = args.no_display
-    RBP_info = ("RBP: {:.3f}")
-
+    #---------------RBP Thresholds---------------#
     if skip == 1:
         RBP_threshold = 0.465
     elif skip == 2:
@@ -491,23 +450,47 @@ if __name__ == "__main__":
     elif skip == 5:
         RBP_threshold = 0.456
 
+    #---------------Feature Scaling---------------#
+    with open(f'./inference/LSTM_v2/skipping_analysis/scaler/scaler_skip{skip}.pkl','rb') as file:
+        scaler = pickle.load(file)    
+
+    #---------------Source---------------#
+    try:
+        source = int(args.source)
+    except ValueError:
+        source = args.source  # If conversion fails, it's a string
+    
+    #---------------Output Video---------------#
+    try:
+        save_vid = int(args.save_vid)
+    except ValueError:
+        save_vid = True
+        output_path = args.save_vid
+        os.makedirs(output_path, exist_ok=True)  # Create the output folder if it doesn't exist
+
+    #---------------Display window properties---------------#
+    display_vid = args.no_display
+    RBP_info = ("RBP: {:.3f}")
+
     persist = 0
     font = cv.FONT_HERSHEY_SIMPLEX
 
-    frame_width = 640       #360p: 640x360 pixels
-    frame_height = 360
+    frame_width = 320
+    frame_height = 240
+    frame_area = frame_height*frame_width
     font_scale = min(frame_width, frame_height) / 500
     thickness = max(1, int(font_scale * 2))
-    x_text, y_text = position = (frame_width - 20, 20)
+    x_text, y_text = position = (frame_width - 30, 20)
     size_text = (115, 16)
 
-    # Calculate the position and size of the rectangle
-    x_rect = x_text - 5
+    # Calculate the position and size of the rectangle for RBP
+    x_rect = x_text
     y_rect = y_text - size_text[1] - 5
-    width_rect = size_text[0] + 10
+    width_rect = size_text[0]
     height_rect = size_text[1] + 10
 
     # Adjust if rectangle goes out of frame
+    
     if x_rect + width_rect > frame_width:
         x_rect = frame_width - width_rect
     if y_rect < 0:
@@ -543,7 +526,7 @@ if __name__ == "__main__":
         os.makedirs(profiling_folder)
 
     # CSV file to log fps
-    csv_file = os.path.join(profiling_folder, 'fps_log.csv')
+    csv_file = os.path.join(profiling_folder, 'fps_log-skip{skip}.csv')
     with open(csv_file, 'w', newline='') as csvfile:
         csv_writer = csv.writer(csvfile)
         csv_writer.writerow(['filename', 'frame_num', 'fps'])
@@ -556,7 +539,7 @@ if __name__ == "__main__":
         stats = pstats.Stats(pr)
         stats.sort_stats(pstats.SortKey.TIME)
         #stats.print_stats()
-        # stats.dump_stats(filename="needs_profiling.prof")
+        stats.dump_stats(filename="needs_profiling.prof")
 
     elif isinstance(source, str):
         #List of all video files in the folder_path
@@ -569,7 +552,7 @@ if __name__ == "__main__":
                         WIN_NAME = f"RBP: {video_file}"
                         video_path = os.path.join(source, video_file)
                         
-                        process_video(video_path)
+                        process_video(video_path, video_file)
                         persist = 0
 
                     else:
@@ -581,7 +564,7 @@ if __name__ == "__main__":
 
             # Save the profiling stats in the profiling folder
             # stats.print_stats()
-            profile_filename = os.path.join(profiling_folder, f"profiling_total.prof")
+            profile_filename = os.path.join(profiling_folder, f"profiling_skip{skip}.prof")
             stats.dump_stats(filename=profile_filename)
 
         except Exception as e:
