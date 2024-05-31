@@ -461,15 +461,17 @@ def infer(input_sequence):
 
     # Load the saved weights
     if skip == 1:
-        model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models_v2/lstm_model_noskip_0.465.pt'))   #No Skip
+        model.load_state_dict(torch.load('./inference/LSTM_v2/skipping_analysis/lstm_models/lstm_model_skip1_0.503.pt'))   #No Skip
     elif skip == 2:
-        model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models_v2/lstm_model_skip2_0.451.pt'))        #Skip = 2
+        model.load_state_dict(torch.load('./inference/LSTM_v2/skipping_analysis/lstm_models/lstm_model_skip2_0.484.pt'))        #Skip = 2
     elif skip == 3:
-        model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models_v2/lstm_model_skip3_0.421.pt'))        #Skip = 3
+        model.load_state_dict(torch.load('./inference/LSTM_v2/skipping_analysis/lstm_models/lstm_model_skip3_0.484.pt'))        #Skip = 3
     elif skip == 4:
-        model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models_v2/lstm_model_skip4_0.453.pt'))        #Skip = 4
+        model.load_state_dict(torch.load('./inference/LSTM_v2/skipping_analysis/lstm_models/lstm_model_skip4_0.507.pt'))        #Skip = 4
     elif skip == 5:
-        model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models_v2/lstm_model_skip5_0.456.pt'))        #Skip = 5
+        model.load_state_dict(torch.load('./inference/LSTM_v2/skipping_analysis/lstm_models/lstm_model_skip5_0.500.pt'))        #Skip = 5
+    elif skip == 6:
+        model.load_state_dict(torch.load('./inference/LSTM_v2/skipping_analysis/lstm_models/lstm_model_skip6_0.370.pt'))        #Skip = 6
     model.eval()  # Set the model to evaluation mode
 
     #input_data = input_sequence[:, 2:].astype(np.float32)
@@ -757,25 +759,29 @@ if __name__ == "__main__":
     RBP_info = ("RBP: {:.2f}")
 
     if skip == 1:
-        RBP_threshold = 0.465
-        with open('./inference/LSTM_v2/scaler/v1.3.2/scaler_skip1.pkl','rb') as file:
+        RBP_threshold = 0.503
+        with open('./inference/LSTM_v2/skipping_analysis/scaler/scaler_skip1.pkl','rb') as file:
             scaler = pickle.load(file)
     elif skip == 2:
-        RBP_threshold = 0.451
-        with open('./inference/LSTM_v2/scaler/v1.3.2/scaler_skip2.pkl','rb') as file:
+        RBP_threshold = 0.484
+        with open('./inference/LSTM_v2/skipping_analysis/scaler/scaler_skip2.pkl','rb') as file:
             scaler = pickle.load(file)
     elif skip == 3:
-       RBP_threshold = 0.421
-       with open('./inference/LSTM_v2/scaler/v1.3.2/scaler_skip3.pkl','rb') as file:
+       RBP_threshold = 0.484
+       with open('./inference/LSTM_v2/skipping_analysis/scaler/scaler_skip3.pkl','rb') as file:
             scaler = pickle.load(file)
     elif skip == 4:
-        RBP_threshold = 0.453
-        with open('./inference/LSTM_v2/scaler/v1.3.2/scaler_skip4.pkl','rb') as file:
+        RBP_threshold = 0.507
+        with open('./inference/LSTM_v2/skipping_analysis/scaler/scaler_skip4.pkl','rb') as file:
             scaler = pickle.load(file)
     elif skip == 5:
-        RBP_threshold = 0.456
-        with open('./inference/LSTM_v2/scaler/v1.3.2/scaler_skip5.pkl','rb') as file:
+        RBP_threshold = 0.500
+        with open('./inference/LSTM_v2/skipping_analysis/scaler/scaler_skip5.pkl','rb') as file:
             scaler = pickle.load(file)
+    elif skip == 6:
+        RBP_threshold = 0.370
+        with open('./inference/LSTM_v2/skipping_analysis/scaler/scaler_skip6.pkl','rb') as file:
+            scaler = pickle.load(file)        
     logger.info("RBP Threshold: {}".format(RBP_threshold))
 
     persist = 0
