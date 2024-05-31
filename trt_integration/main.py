@@ -8,6 +8,7 @@ import argparse
 import random
 import ctypes
 import time
+import pickle
 from argparse import ArgumentParser
 from loguru import logger
 
@@ -22,8 +23,6 @@ from ultralytics.utils.plotting import Annotator, colors
 import torch
 import torch.nn as nn
 import numpy as np
-from sklearn.preprocessing import StandardScaler
-scaler = StandardScaler()
 
 class YoloTRT():
     def __init__(self, library, engine, conf):
@@ -462,15 +461,15 @@ def infer(input_sequence):
 
     # Load the saved weights
     if skip == 1:
-        model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models/lstm_model_noskip_0.465.pt'))   #No Skip
+        model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models_v2/lstm_model_noskip_0.465.pt'))   #No Skip
     elif skip == 2:
-        model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models/lstm_model_skip2_0.451.pt'))        #Skip = 2
+        model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models_v2/lstm_model_skip2_0.451.pt'))        #Skip = 2
     elif skip == 3:
-        model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models/lstm_model_skip3____.pt'))        #Skip = 3
+        model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models_v2/lstm_model_skip3_0.421.pt'))        #Skip = 3
     elif skip == 4:
-        model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models/lstm_model_skip4_0.453.pt'))        #Skip = 4
+        model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models_v2/lstm_model_skip4_0.453.pt'))        #Skip = 4
     elif skip == 5:
-        model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models/lstm_model_skip5_0.450.pt'))        #Skip = 5
+        model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models_v2/lstm_model_skip5_0.456.pt'))        #Skip = 5
     model.eval()  # Set the model to evaluation mode
 
     #input_data = input_sequence[:, 2:].astype(np.float32)
@@ -684,7 +683,7 @@ def annotate_video(frame, RBP):
     RBP_text = RBP_info.format(RBP)
 
     if RBP > RBP_threshold:
-        set_persist(1, 5)           # Set persist to 1 and reset it after 5 seconds
+        set_persist(1, 3)           # Set persist to 1 and reset it after 3 seconds
         # persist = 1
         text_color = (0, 0, 128)    # Red color
     else:
@@ -759,14 +758,24 @@ if __name__ == "__main__":
 
     if skip == 1:
         RBP_threshold = 0.465
+        with open('./inference/LSTM_v2/scaler/v1.3.2/scaler_skip1.pkl','rb') as file:
+            scaler = pickle.load(file)
     elif skip == 2:
         RBP_threshold = 0.451
-    # elif skip == 3:
-    #    RBP_threshold = 0.453
+        with open('./inference/LSTM_v2/scaler/v1.3.2/scaler_skip2.pkl','rb') as file:
+            scaler = pickle.load(file)
+    elif skip == 3:
+       RBP_threshold = 0.421
+       with open('./inference/LSTM_v2/scaler/v1.3.2/scaler_skip3.pkl','rb') as file:
+            scaler = pickle.load(file)
     elif skip == 4:
         RBP_threshold = 0.453
+        with open('./inference/LSTM_v2/scaler/v1.3.2/scaler_skip4.pkl','rb') as file:
+            scaler = pickle.load(file)
     elif skip == 5:
         RBP_threshold = 0.456
+        with open('./inference/LSTM_v2/scaler/v1.3.2/scaler_skip5.pkl','rb') as file:
+            scaler = pickle.load(file)
     logger.info("RBP Threshold: {}".format(RBP_threshold))
 
     persist = 0
@@ -857,7 +866,7 @@ if __name__ == "__main__":
                     if video_file.endswith('.mp4'): 
                         WIN_NAME = f"RBP: {video_file}"
                         video_path = os.path.join(source, video_file)
-                        process_video(video_path)
+                        process_video(video_path, video_file)
                         persist = 0
                     else:
                         print("Invalid source.")
