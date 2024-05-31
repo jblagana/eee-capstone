@@ -440,15 +440,17 @@ if __name__ == "__main__":
 
     #---------------RBP Thresholds---------------#
     if skip == 1:
-        RBP_threshold = 0.465
+        RBP_threshold = 0.503
     elif skip == 2:
-        RBP_threshold = 0.451
+        RBP_threshold = 0.484
     elif skip == 3:
-        RBP_threshold = 0.421        
+        RBP_threshold = 0.484      
     elif skip == 4:
-        RBP_threshold = 0.453
+        RBP_threshold = 0.507
     elif skip == 5:
-        RBP_threshold = 0.456
+        RBP_threshold = 0.500
+    elif skip == 6:
+        RBP_threshold = 0.370
 
     #---------------Feature Scaling---------------#
     with open(f'./inference/LSTM_v2/skipping_analysis/scaler/scaler_skip{skip}.pkl','rb') as file:
@@ -459,6 +461,7 @@ if __name__ == "__main__":
         source = int(args.source)
     except ValueError:
         source = args.source  # If conversion fails, it's a string
+    frame_width = frame_height = fps = 0
     
     #---------------Output Video---------------#
     try:
@@ -471,19 +474,6 @@ if __name__ == "__main__":
     #---------------Display window properties---------------#
     display_vid = args.no_display
     RBP_info = ("RBP: {:.3f}")
-
-    if skip == 1:
-        RBP_threshold = 0.503
-    elif skip == 2:
-        RBP_threshold = 0.484
-    elif skip == 3:
-        RBP_threshold = 0.484      
-    elif skip == 4:
-        RBP_threshold = 0.507
-    elif skip == 5:
-        RBP_threshold = 0.500
-    elif skip == 6:
-        RBP_threshold = 0.370
 
     persist = 0
     font = cv.FONT_HERSHEY_SIMPLEX
@@ -539,7 +529,7 @@ if __name__ == "__main__":
         os.makedirs(profiling_folder)
 
     # CSV file to log fps
-    csv_file = os.path.join(profiling_folder, 'fps_log-skip{skip}.csv')
+    csv_file = os.path.join(profiling_folder, f'fps_log-skip{skip}.csv')
     with open(csv_file, 'w', newline='') as csvfile:
         csv_writer = csv.writer(csvfile)
         csv_writer.writerow(['filename', 'frame_num', 'fps'])
