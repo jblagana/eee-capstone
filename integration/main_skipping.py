@@ -286,6 +286,7 @@ def process_video(source):
             # if (len(module_result) == 20) and (not persist):
             if len(module_result) == 20:
                 # Make predictions
+                print(module_result) #testing
                 RBP = infer(module_result)
                 module_result.clear()
 

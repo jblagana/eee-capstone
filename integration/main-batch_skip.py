@@ -277,10 +277,11 @@ def process_video(source, filename):
                     crowd_density, 
                     loitering, 
                     concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
-                
+
             frames = []
             frames_cnt = []
             if not persist:
+                print(module_result) #testing--------------------------------
                 RBP = infer(module_result)
                 module_result = []
             
@@ -308,6 +309,7 @@ def process_video(source, filename):
 
             if save_vid:
                 cap_out.write(frame)
+    
 
     cap.release()
     if save_vid:
