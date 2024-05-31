@@ -167,13 +167,13 @@ def infer(input_sequence):
     model = LSTMModel(n_features, hidden_size=64)
 
     # Load the saved weights
-    model.load_state_dict(torch.load(f'inference\LSTM_v2\lstm_models_v2\lstm_model_skip{skip}_{RBP_threshold}.pt'))
+    model.load_state_dict(torch.load(f'inference\LSTM_v2\skipping_analysis\lstm_models\lstm_model_skip{skip}_{RBP_threshold:.3f}.pt'))
     model.eval()  # Set the model to evaluation mode
 
     #input_data = input_sequence[:, 2:].astype(np.float32)
     input_data = input_sequence[:, 1:].astype(np.float32)   #Updated array slicing
 
-    with open(f'inference/LSTM_v2/scaler/v1.3.2/scaler_skip{skip}.pkl','rb') as file: # load scaler from training phase
+    with open(f'inference\LSTM_v2\skipping_analysis\scaler\scaler_skip{skip}.pkl','rb') as file: # load scaler from training phase
         scaler = pickle.load(file)
 
     input_data_scaled = scaler.transform(input_data)
@@ -286,7 +286,7 @@ def process_video(source):
             # if (len(module_result) == 20) and (not persist):
             if len(module_result) == 20:
                 # Make predictions
-                print(module_result) #testing
+                # print(module_result) #testing
                 RBP = infer(module_result)
                 module_result.clear()
 
@@ -481,15 +481,17 @@ if __name__ == "__main__":
     RBP_info = ("RBP: {:.3f}")
 
     if skip == 1:
-        RBP_threshold = 0.465
+        RBP_threshold = 0.503
     elif skip == 2:
-        RBP_threshold = 0.451
+        RBP_threshold = 0.484
     elif skip == 3:
-        RBP_threshold = 0.421        
+        RBP_threshold = 0.484      
     elif skip == 4:
-        RBP_threshold = 0.453
+        RBP_threshold = 0.507
     elif skip == 5:
-        RBP_threshold = 0.456
+        RBP_threshold = 0.500
+    elif skip == 6:
+        RBP_threshold = 0.370
 
     persist = 0
     font = cv.FONT_HERSHEY_SIMPLEX
