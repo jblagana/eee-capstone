@@ -94,7 +94,7 @@ def vid_processing(folder_path, csv_filename, field_names):
 
                 if frame_num % skip == 0:
                     # Perform detection & tracking on frame only every 5 frames
-                    results = model.track(frame, persist=True, verbose=False, tracker="loitering/custom-bytetrack.yaml")
+                    results = model.track(frame, persist=True, conf=0.481, verbose=False, tracker="loitering/custom-bytetrack.yaml")
                     if results[0].boxes.id is not None:
                         boxes = results[0].boxes.xywh.cpu() 
                         track_ids = results[0].boxes.id.int().cpu().tolist()
@@ -146,11 +146,11 @@ def vid_processing(folder_path, csv_filename, field_names):
         
         
 if __name__ == "__main__":
-    for skip in range(11,21):
-        # skip = 6 # log only every x frames
+    for skip in [1,3,10,15,20]:
+        # skip = 5 # log only every x frames
 
         #Declaring CSV filename and header fields
-        csv_filename = f"inference/LSTM_v2/training_csv/train_inf5050_skip{skip}.csv"
+        csv_filename = f"inference/LSTM_v2/conf_0.481/training_csv/train_inf5050_conf0.481_skip{skip}.csv"
         field_names = ["video_id","frame_num","crowd_density","loitering","no_concealment","low_concealment","med_concealment","high_concealment","rbp"]
 
         #Declaring folder path of the videos to be processed
