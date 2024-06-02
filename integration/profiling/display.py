@@ -1,14 +1,18 @@
 # Displaying fps
 import matplotlib.pyplot as plt
-import csv
+plt.rcParams.update({
+    'font.family': 'serif',
+    'font.size': 8
+})
 
 import os
 import subprocess
 
+import csv
 import pandas as pd
-import numpy as np
 
 import os
+import psutil
 
 def display_fps():
     # Iterate through files in the directory
@@ -38,6 +42,7 @@ def display_fps():
             plt.title(title)  # Set title with file name
             plt.savefig(f'integration/profiling/{title}.png')
             # plt.show()
+            plt.close()
 
 
 def display_statistics():
@@ -70,7 +75,7 @@ def display_resource_jetson():
                 power_usage.append(float(row[25]))
 
         # Create a 2x2 subplot
-        fig, axs = plt.subplots(2, 2, figsize=(9, 6))
+        fig, axs = plt.subplots(2, 2, figsize=(12, 6))
 
         # Plot CPU usage
         axs[0, 0].plot(time, cpu_usage, label="CPU")
@@ -92,24 +97,24 @@ def display_resource_jetson():
         axs[1, 0].legend()
 
         # Plot power usage
-        axs[1, 1].plot(time, power_usage, label="Power")
-        axs[1, 1].set_title("Power Usage")
-        axs[1, 1].set_xlabel("Time (s)")
-        axs[1, 1].set_ylabel("Usage (Watts)")
-        axs[1, 1].legend()
+        # axs[1, 1].plot(time, power_usage, label="Power")
+        # axs[1, 1].set_title("Power Usage")
+        # axs[1, 1].set_xlabel("Time (s)")
+        # axs[1, 1].set_ylabel("Usage (Watts)")
+        # axs[1, 1].legend()
 
         # Adjust layout
         plt.tight_layout()
         plt.savefig('trt_integration/profiling/resource_jetson.png')
         # plt.show()
 
-    except Exception:
+    except:
         pass
 
 def display_resource():
     # Display resource consumption
     try:
-        df = pd.read_csv(os.path.join(profiling_folder, "resource_log-notJetson.csv"))
+        df = pd.read_csv(os.path.join(profiling_folder, "resource_nonJetson.csv"))
 
         # Extract relevant columns
         time = df.index
@@ -118,33 +123,34 @@ def display_resource():
         gpu_usage = df["GPU"]
         memory_usage = df["RAM"]
 
-        # Create a 2x2 subplot
-        fig, axs = plt.subplots(2, 2, figsize=(9, 6))
+        # Create a 1x3 subplot
+        fig, axs = plt.subplots(1, 3, figsize=(9, 3))
 
         # Plot CPU usage
-        axs[0, 0].plot(time, cpu_usage, label="CPU")
-        axs[0, 0].set_title("CPU Usage")
-        axs[0, 0].set_ylabel("Usage (%)")
-        axs[0, 0].legend()
+        axs[0].plot(time, cpu_usage, label="CPU")
+        axs[0].set_title("CPU Utilization")
+        axs[0].set_ylabel("Usage (%)")
+        axs[0].legend()
 
         # Plot GPU usage
-        axs[0, 1].plot(time, gpu_usage, label="GPU")
-        axs[0, 1].set_title("GPU Usage")
-        axs[0, 1].set_ylabel("Usage (%)")
-        axs[0, 1].legend()
+        axs[1].plot(time, gpu_usage, label="GPU")
+        axs[1].set_title("GPU Utilization")
+        axs[1].set_ylabel("Usage (%)")
+        axs[1].legend()
 
         # Plot memory usage
-        axs[1, 0].plot(time, memory_usage, label="Memory")
-        axs[1, 0].set_title("Memory Usage")
-        axs[1, 0].set_xlabel("Time (s)")
-        axs[1, 0].set_ylabel("Usage (%)")
-        axs[1, 0].legend()
+        axs[2].plot(time, memory_usage, label="Memory")
+        axs[2].set_title(f"Memory Usage\n(Total = {psutil.virtual_memory().total:.2e} Bytes)")
+        axs[2].set_xlabel("Time (s)")
+        axs[2].set_ylabel("Usage (Bytes)")
+        axs[2].legend()
 
         # Adjust layout
         plt.tight_layout()
+        # plt.savefig('integration/profiling/resource_nonJetson.png')
         plt.show()
 
-    except Exception:
+    except:
         pass
 
 if __name__ == "__main__":

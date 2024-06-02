@@ -7,7 +7,7 @@ import subprocess
 profiling_folder = "integration/profiling"
 
 # CSV file to log resource usage
-csv_file = os.path.join(profiling_folder, 'resource_log-notJetson.csv')
+csv_file = os.path.join(profiling_folder, 'resource_nonJetson.csv')
 
 try:
     with open(csv_file, 'w', newline='') as csvfile:
@@ -15,10 +15,11 @@ try:
         csv_writer.writerow(['Index', 'CPU', 'GPU', 'RAM'])
 
         index = 0
-
+        print("Resource monitoring started...")
+        
         while True:
             cpu_usage = psutil.cpu_percent()
-            memory_usage = psutil.virtual_memory().percent
+            memory_usage = psutil.virtual_memory().used
 
             # Get GPU usage using nvidia-smi
             try:
