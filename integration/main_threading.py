@@ -292,7 +292,9 @@ def capture_frames(source):
 
     frame_num = 0
     cap = cv.VideoCapture(source)
-    cap.set(cv.CAP_PROP_FPS, 30)
+    if isinstance(source, int):
+        cap.set(cv.CAP_PROP_FPS, 30)
+    
     if not cap.isOpened():
         print(f"Error: Could not open {source}. Closing the program.")
         sys.exit()
