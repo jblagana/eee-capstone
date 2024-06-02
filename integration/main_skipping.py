@@ -538,7 +538,7 @@ if __name__ == "__main__":
     if isinstance(source, int):
         WIN_NAME = "RBP: Camera Feed"
         with cProfile.Profile() as pr:
-            process_video(source)
+            process_video(source,"camera")
         stats = pstats.Stats(pr)
         stats.sort_stats(pstats.SortKey.TIME)
         #stats.print_stats()

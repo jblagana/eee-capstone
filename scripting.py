@@ -13,6 +13,7 @@ import numpy as np
 import os
 import random
 import threading
+import tensorrt
 
 from tqdm import tqdm
 from ultralytics import YOLO
@@ -146,7 +147,7 @@ def vid_processing(folder_path, csv_filename, field_names):
         
         
 if __name__ == "__main__":
-    for skip in [1,3,10,15,20]:
+    for skip in [9,8,3,2]:
         # skip = 5 # log only every x frames
 
         #Declaring CSV filename and header fields
