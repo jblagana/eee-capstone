@@ -446,28 +446,6 @@ def process_frames(filename):
     else:
         print("    ------T2: PROCESS_FRAME THREAD STOP.------")
 
-# def display_save_frames():
-#     while True:
-#         try:
-#             #Getting frame from buffer
-#             # frame_num, frame = to_annotate_queue.get(timeout=1)
-#             annotated_frame = annotate_video(frame, RBP_val)
-
-#             if display_vid:
-#                 cv.imshow(WIN_NAME, annotated_frame)
-#                 print(f"<<<T3: Display annotated: frame# {frame_num}>>>")
-#             if save_vid:
-#                 cap_out.write(frame)
-#         except queue.Empty:
-#             if process_thread_done:
-#                 break
-#             else:
-#                 continue
-    
-#     if save_vid:
-#         cap_out.release()
-#     if display_vid:
-#         cv.destroyAllWindows()
 
 def process_video(source, filename):
     global frame_queue, capture_thread_done, process_thread_done, thread_interrupt
@@ -476,18 +454,6 @@ def process_video(source, filename):
         capture_thread = threading.Thread(target=capture_frames, args=(source,))
         process_thread = threading.Thread(target=process_frames, args=(filename,))
 
-        # if display_vid or save_vid:
-        #     if save_vid:
-        #         cap_out = cv.VideoWriter(
-        #             output_path + "/annotated-" + filename,
-        #             cv.VideoWriter_fourcc(*'MP4V'),
-        #             30.0, #cap.get(cv.CAP_PROP_FPS)
-        #             (frame_width, frame_height)
-        #         )
-        #     if display_vid:
-        #         cv.namedWindow(WIN_NAME, cv.WINDOW_NORMAL)
-        #         cv.waitKey(1)
-        #     display_save_thread = threading.Thread(target=display_save_frames)
         print("---------------------------------")
         print(f"Process_video: Start processing {filename}")
         print("Starting threads. CTRL+C to terminate threads.")
@@ -508,8 +474,6 @@ def process_video(source, filename):
     process_thread.join()
     print("--------------------------------")
     print("Process_video: All threads done.")
-    
-    # display_save_thread.join()
 
     # Clearing global variables
     with frame_queue.mutex:
@@ -518,18 +482,11 @@ def process_video(source, filename):
     #Checking if queue is indeed cleared
     if frame_queue.empty():
         print("Frame queue is empty.")
-
-    # with to_annotate_queue.mutex:
-    #     to_annotate_queue.queue.clear()
     
     capture_thread_done = False
     process_thread_done = False
     thread_interrupt = False
     persist = 0
-
-    # cap_out = None
-    RBP_val = 0
-
 
 if __name__ == "__main__":
     args = parse_args() 
@@ -648,9 +605,6 @@ if __name__ == "__main__":
     process_thread_done = False
     thread_interrupt = False
     frame_queue = queue.Queue(maxsize=1000)  # Buffer size
-    # to_annotate_queue = queue.Queue(maxsize=1000)  # Buffer size
-    # cap_out = None
-    RBP_val = 0
 
     #---------------MAIN PROCESSING---------------#
     if isinstance(source, int):
