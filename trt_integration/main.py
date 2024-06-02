@@ -8,6 +8,7 @@ import argparse
 import random
 import ctypes
 import time
+import pickle
 from argparse import ArgumentParser
 from loguru import logger
 
@@ -17,13 +18,12 @@ import tensorrt as trt
 import threading
 
 from trt_integration.bytetrack.byte_tracker import BYTETracker
+# from trt_integration.bytetrack.byte_tracker_v2 import BYTETracker
 from ultralytics.utils.plotting import Annotator, colors
 
 import torch
 import torch.nn as nn
 import numpy as np
-from sklearn.preprocessing import StandardScaler
-scaler = StandardScaler()
 
 class YoloTRT():
     def __init__(self, library, engine, conf):
@@ -136,9 +136,9 @@ class YoloTRT():
             det["conf"] = result_scores[j]
             det["box"] = box            
             det_res.append(det)
-            self.PlotBbox(box, img, color = colors(int(result_classid[j]), True), label="{}:{:.2f}".format(self.categories[int(result_classid[j])], result_scores[j]),)
+            # self.PlotBbox(box, img, color = colors(int(result_classid[j]), True), label="{}:{:.2f}".format(self.categories[int(result_classid[j])], result_scores[j]),)
         
-        return det_res, t2-t1
+        return det_res, img
 
     def PostProcess(self, output, origin_h, origin_w):
         """
@@ -302,6 +302,12 @@ def parse_args():
         action="store_false",
         help="Disables playing of video while processing. Default = True.",
     )
+    # Profiling
+    parser.add_argument(
+        "--no-profile",
+        action="store_false",
+        help="Disables profiling of code.",
+    )
     # FPS Logging
     parser.add_argument(
         "--no-fps-log",
@@ -314,7 +320,7 @@ def parse_args():
         action="store_false",
         help="Disables annotation of frame",
     )    
-    # Skip 5 frames
+    # Skip frames
     parser.add_argument(
         "--skip-frames",
         default=1,
@@ -411,13 +417,14 @@ def loitering_module(frame, boxes, track_ids, clss, names, missed_detect, misses
         dwell_time[track_id] = dwell_time.get(track_id, 0) + 1 #Increment its dwell time
         misses_cnt[track_id] = 0    #Reset misses_cnt to 0
         
-        #Annotate video
-        # x1, y1, x2, y2 = box
-        # cls_name = class_names[int(cls)]
+        # Annotate video
+        x1, y1, x2, y2 = box
+        cls_name = class_names[int(cls)]
+        xyxy = [x1,y1,x2,y2]
         # xywh = [(x1 - x2 / 2), (y1 - y2 / 2), (x1 + x2 / 2), (y1 + y2 / 2)]
-        # label = "#{}:{}".format(track_id, dwell_time[track_id])
-        # annotator = Annotator(frame, line_width=1, example=names)
-        # annotator.box_label(xywh, label=label, color=colors(int(cls), True), txt_color=(255, 255, 255))
+        label = "#{}:{}".format(track_id, dwell_time[track_id])
+        annotator = Annotator(frame, line_width=1, example=names)
+        annotator.box_label(xyxy, label=label, color=colors(int(cls), True), txt_color=(255, 255, 255))
 
     # Check number of missed detections of each object
     if missed_detect:
@@ -462,20 +469,24 @@ def infer(input_sequence):
 
     # Load the saved weights
     if skip == 1:
-        model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models/lstm_model_noskip_0.465.pt'))   #No Skip
+        model.load_state_dict(torch.load('./inference/LSTM_v2/skipping_analysis/lstm_models/lstm_model_skip1_0.503.pt'))   #No Skip
     elif skip == 2:
-        model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models/lstm_model_skip2_0.451.pt'))        #Skip = 2
+        model.load_state_dict(torch.load('./inference/LSTM_v2/skipping_analysis/lstm_models/lstm_model_skip2_0.484.pt'))        #Skip = 2
     elif skip == 3:
-        model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models/lstm_model_skip3____.pt'))        #Skip = 3
+        model.load_state_dict(torch.load('./inference/LSTM_v2/skipping_analysis/lstm_models/lstm_model_skip3_0.484.pt'))        #Skip = 3
     elif skip == 4:
-        model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models/lstm_model_skip4_0.453.pt'))        #Skip = 4
+        model.load_state_dict(torch.load('./inference/LSTM_v2/skipping_analysis/lstm_models/lstm_model_skip4_0.507.pt'))        #Skip = 4
     elif skip == 5:
-        model.load_state_dict(torch.load('./inference/LSTM_v2/lstm_models/lstm_model_skip5_0.450.pt'))        #Skip = 5
+        model.load_state_dict(torch.load('./inference/LSTM_v2/skipping_analysis/lstm_models/lstm_model_skip5_0.500.pt'))        #Skip = 5
+    elif skip == 6:
+        model.load_state_dict(torch.load('./inference/LSTM_v2/skipping_analysis/lstm_models/lstm_model_skip6_0.370.pt'))        #Skip = 6
+
     model.eval()  # Set the model to evaluation mode
 
     #input_data = input_sequence[:, 2:].astype(np.float32)
     input_data = input_sequence[:, 1:].astype(np.float32)   #Updated array slicing
-    input_data_scaled = scaler.fit_transform(input_data)
+
+    input_data_scaled = scaler.transform(input_data)
     input_data = torch.tensor(input_data_scaled, dtype=torch.float32)
 
     # Make predictions
@@ -537,6 +548,10 @@ def process_video(source, filename):
 
     #Frame variables
     frame_num = 0
+    video_width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
+    video_height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
+    print("video_width: ", video_width)
+    print("video_height: ", video_height)
 
     # #Loitering variables
     missed_detect = {} # Dictionary that contains all the tracked object, key:id, value: True/False (false - present in the frame)
@@ -566,7 +581,7 @@ def process_video(source, filename):
             continue
 
         # YOLO Inference with TensorRT
-        detections, t = model.Inference(frame)
+        detections, frame = model.Inference(frame)
         logger.info("Detections: {}".format(detections))
 
         # If detection results is not empty
@@ -580,13 +595,15 @@ def process_video(source, filename):
                 box = detection["box"]
                 conf = detection["conf"]
                 cls = detection["class_id"]
-                output.append([box[0], box[1], box[2], box[3], conf])       
+                output.append([float(box[0]), float(box[1]), float(box[2]), float(box[3]), conf])
+                # output.append([float(box[0]), float(box[1]), float(box[2]), float(box[3]), conf, cls])
                 boxes.append([box[0], box[1], box[2], box[3]])
                 clss.append(cls)
-            output = torch.tensor(output)
-            boxes = torch.tensor(boxes)
+            output = torch.tensor(output, dtype=torch.float32)
+            # output = np.array(output)                                   # defaults to higher precision float64
+            boxes = torch.tensor(boxes, dtype=torch.float32)              # xyxy
             if args.input == 'video':
-                info_imgs = img_size = [frame_height, frame_width]
+                info_imgs = img_size = [video_height, video_width]
             else:
                 info_imgs = img_size = [capture_height, capture_width]
 
@@ -605,7 +622,7 @@ def process_video(source, filename):
                     tid = t.track_id
                     online_boxes.append(tlwh)
                     online_ids.append(tid)
-            online_boxes = torch.tensor(online_boxes)
+            online_boxes = torch.tensor(online_boxes, dtype=torch.float32)
 
             #Crowd density module
             crowd_density = crowd_density_module(online_boxes, frame)
@@ -614,7 +631,7 @@ def process_video(source, filename):
             concealment_counts = concealment_module(clss)
 
             #Loitering module
-            missed_detect, misses_cnt, dwell_time, loitering = loitering_module(frame, online_boxes, online_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age)
+            missed_detect, misses_cnt, dwell_time, loitering = loitering_module(frame, boxes, online_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age)
 
             module_result.append([frame_num, 
                     crowd_density, 
@@ -624,6 +641,10 @@ def process_video(source, filename):
             # Make predictions every 20 frames
             if len(module_result) == 20:
                 RBP = infer(module_result)
+                # Log module results
+                with open(csv_file_module_result, 'a', newline='') as csvfile:
+                            csv_writer = csv.writer(csvfile)
+                            csv_writer.writerow([filename, frame_num, output, online_boxes, module_result, RBP])
                 module_result.clear()
             
         elif not detections:
@@ -684,11 +705,13 @@ def annotate_video(frame, RBP):
     RBP_text = RBP_info.format(RBP)
 
     if RBP > RBP_threshold:
-        set_persist(1, 5)           # Set persist to 1 and reset it after 5 seconds
-        # persist = 1
-        text_color = (0, 0, 128)    # Red color
+        if args.input == 'video':
+            persist = 1                 # Set persist to 1 (for the duration of the vid)
+        else:
+            set_persist(1, 3)           # Set persist to 1 and reset it after 3 seconds
+        text_color = (0, 0, 128)        # Red color
     else:
-        text_color = (0, 128, 0)    # Green color
+        text_color = (0, 128, 0)        # Green color
 
     # Draw white background rectangle
     cv.rectangle(frame, (x_rect, y_rect), (x_rect + width_rect, y_rect + height_rect), (255, 255, 255), -1)
@@ -723,14 +746,17 @@ if __name__ == "__main__":
     EXPLICIT_BATCH = 1 << (int)(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
 
     # Initialize YOLOv8 Detector object using a TensorRT engine file
-    model = YoloTRT(library=PLUGIN_LIBRARY, engine=engine_file_path, conf=0.5)
+    model = YoloTRT(library=PLUGIN_LIBRARY, engine=engine_file_path, conf=0.25)
 
     #---------------ByteTrack---------------#
     args_bytetrack = argparse.Namespace()
-    args_bytetrack.track_thresh = 0.2
-    args_bytetrack.track_buffer = 200
-    args_bytetrack.mot20 = True
-    args_bytetrack.match_thresh = 0.7
+    # args_bytetrack.track_thresh = 0.5
+    args_bytetrack.track_high_thresh = 0.5  # threshold for the first association
+    args_bytetrack.track_low_thresh = 0.1   # threshold for the second association
+    args_bytetrack.new_track_thresh = 0.6   # threshold for init new track if the detection does not match any tracks
+    args_bytetrack.track_buffer = 500       # buffer to calculate the time when to remove tracks; default = 30
+    args_bytetrack.mot20 = False
+    args_bytetrack.match_thresh = 0.8       # threshold for matching tracks
 
     # Initializes a ByteTrack tracker object
     tracker = BYTETracker(args_bytetrack)
@@ -758,15 +784,30 @@ if __name__ == "__main__":
     RBP_info = ("RBP: {:.2f}")
 
     if skip == 1:
-        RBP_threshold = 0.465
+        RBP_threshold = 0.503
+        with open('./inference/LSTM_v2/skipping_analysis/scaler/scaler_skip1.pkl','rb') as file:
+            scaler = pickle.load(file)
     elif skip == 2:
-        RBP_threshold = 0.451
-    # elif skip == 3:
-    #    RBP_threshold = 0.453
+        RBP_threshold = 0.484
+        with open('./inference/LSTM_v2/skipping_analysis/scaler/scaler_skip2.pkl','rb') as file:
+            scaler = pickle.load(file)
+    elif skip == 3:
+        RBP_threshold = 0.484
+        with open('./inference/LSTM_v2/skipping_analysis/scaler/scaler_skip3.pkl','rb') as file:
+            scaler = pickle.load(file)
     elif skip == 4:
-        RBP_threshold = 0.453
+        RBP_threshold = 0.507
+        with open('./inference/LSTM_v2/skipping_analysis/scaler/scaler_skip4.pkl','rb') as file:
+            scaler = pickle.load(file)
     elif skip == 5:
-        RBP_threshold = 0.456
+        RBP_threshold = 0.500
+        with open('./inference/LSTM_v2/skipping_analysis/scaler/scaler_skip5.pkl','rb') as file:
+            scaler = pickle.load(file)
+    elif skip == 6:
+        RBP_threshold = 0.370
+        with open('./inference/LSTM_v2/skipping_analysis/scaler/scaler_skip6.pkl','rb') as file:
+            scaler = pickle.load(file) 
+
     logger.info("RBP Threshold: {}".format(RBP_threshold))
 
     persist = 0
@@ -822,6 +863,14 @@ if __name__ == "__main__":
     if not os.path.exists(profiling_folder):
         os.makedirs(profiling_folder)
 
+    #---------------Log Module Result---------------#
+        
+    # CSV file to log module result
+    csv_file_module_result = os.path.join(profiling_folder, 'module_result_trt.csv')
+    with open(csv_file_module_result, 'w', newline='') as csvfile:
+        csv_writer = csv.writer(csvfile)
+        csv_writer.writerow(['filename', 'frame_num', 'boxes', 'online_boxes', 'module_result', 'RBP'])
+
     #---------------Log FPS---------------#
     fps_log = args.no_fps_log
 
@@ -834,42 +883,64 @@ if __name__ == "__main__":
     
     #---------------Processing/Profiling---------------#
 
-    if isinstance(source, int):
-        try:
-            with cProfile.Profile() as pr:
-                WIN_NAME = "RBP: Camera Feed"
-                process_video(source, 'camera')
-            stats = pstats.Stats(pr)
-            stats.sort_stats(pstats.SortKey.TIME)
-            #stats.print_stats()
-            profile_filename = os.path.join(profiling_folder, f"profiling_total.prof")
-            stats.dump_stats(filename=profile_filename)
+    profile_code = args.no_profile 
+
+    # No Profiling
+    if not profile_code:
+        if isinstance(source, int):
+            WIN_NAME = "RBP: Camera Feed"
+            process_video(source, 'camera')
+            
+        elif isinstance(source, str):
+            #List of all video files in the folder_path
+            video_files = os.listdir(source)                    
+            
+            for video_file in video_files:
+                if video_file.endswith('.mp4'):
+                    WIN_NAME = f"RBP: {video_file}"
+                    video_path = os.path.join(source, video_file)
+                    process_video(video_path, video_file)
+                    persist = 0
+
+    # With Profiling
+    else:
+        if isinstance(source, int):
+            try:
+                with cProfile.Profile() as pr:
+                    WIN_NAME = "RBP: Camera Feed"
+                    process_video(source, 'camera')
+                stats = pstats.Stats(pr)
+                stats.sort_stats(pstats.SortKey.TIME)
+                #stats.print_stats()
+                profile_filename = os.path.join(profiling_folder, f"profiling_total.prof")
+                stats.dump_stats(filename=profile_filename)
                 
-        except Exception as e:
-            print(f"Profiling error: {e}")
+            except Exception as e:
+                print(f"Profiling error: {e}")
                 
-    elif isinstance(source, str):
-        #List of all video files in the folder_path
-        video_files = os.listdir(source)
-        try:
-            with cProfile.Profile() as pr:
-                for video_file in video_files:
-                    if video_file.endswith('.mp4'): 
-                        WIN_NAME = f"RBP: {video_file}"
-                        video_path = os.path.join(source, video_file)
-                        process_video(video_path)
-                        persist = 0
-                    else:
-                        print("Invalid source.")
-                        sys.exit()
+        elif isinstance(source, str):
+            #List of all video files in the folder_path
+            video_files = os.listdir(source)
 
-            stats = pstats.Stats(pr)
-            stats.sort_stats(pstats.SortKey.TIME)
+            try:
+                with cProfile.Profile() as pr:
+                    for video_file in video_files:
+                        if video_file.endswith('.mp4'): 
+                            WIN_NAME = f"RBP: {video_file}"
+                            video_path = os.path.join(source, video_file)
+                            process_video(video_path, video_file)
+                            persist = 0
+                        else:
+                            print("Invalid source.")
+                            sys.exit()
 
-            # Save the profiling stats in the profiling folder
-            # stats.print_stats()
-            profile_filename = os.path.join(profiling_folder, f"profiling_total.prof")
-            stats.dump_stats(filename=profile_filename)
+                stats = pstats.Stats(pr)
+                stats.sort_stats(pstats.SortKey.TIME)
 
-        except Exception as e:
-            print(f"Profiling error: {e}")
+                # Save the profiling stats in the profiling folder
+                # stats.print_stats()
+                profile_filename = os.path.join(profiling_folder, f"profiling_total.prof")
+                stats.dump_stats(filename=profile_filename)
+
+            except Exception as e:
+                print(f"Profiling error: {e}")
