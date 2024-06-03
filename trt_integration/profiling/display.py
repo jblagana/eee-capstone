@@ -54,56 +54,57 @@ def display_resource_jetson():
         time = []
         cpu_usage = []
         gpu_usage = []
-        memory_usage = []
-        power_usage = []
+        used_RAM = []
+        tot_RAM = []
 
         # Open the CSV file
-        csv_file_path = os.path.join(profiling_folder, "resource_log-jetson.csv")
+        csv_file_path = os.path.join(profiling_folder, "resource_log-Jetson.csv")
         with open(csv_file_path, 'r') as file:
             csv_reader = csv.reader(file)
             header = next(csv_reader)  # Skip the header row
             for i, row in enumerate(csv_reader):
                 time.append(i) # index is in unit seconds
                 cpu_usage.append(sum(map(float, row[2:6])) / 4)
-                gpu_usage.append(float(row[10]))
-                memory_usage.append(float(row[6]))
-                power_usage.append(float(row[25]))
+                gpu_usage.append(float(row[6]))
+                used_RAM.append(float(row[7]))
+                tot_RAM.append(float(row[8]))
+                
 
-        # Create a 2x2 subplot
-        fig, axs = plt.subplots(2, 2, figsize=(9, 6))
+        # Create a 1x3 subplot
+        fig, axs = plt.subplots(1, 3, figsize=(9, 3))
 
         # Plot CPU usage
-        axs[0, 0].plot(time, cpu_usage, label="CPU")
-        axs[0, 0].set_title("CPU Usage")
-        axs[0, 0].set_ylabel("Usage (%)")
-        axs[0, 0].legend()
+        axs[0].plot(time, cpu_usage, label="CPU")
+        axs[0].set_title("CPU Usage")
+        axs[0].set_ylabel("Usage (%)")
+        axs[0].legend()
 
         # Plot GPU usage
-        axs[0, 1].plot(time, gpu_usage, label="GPU")
-        axs[0, 1].set_title("GPU Usage")
-        axs[0, 1].set_ylabel("Usage (%)")
-        axs[0, 1].legend()
+        axs[1].plot(time, gpu_usage, label="GPU")
+        axs[1].set_title("GPU Usage")
+        axs[1].set_ylabel("Usage (%)")
+        axs[1].legend()
 
         # Plot memory usage
-        axs[1, 0].plot(time, memory_usage, label="Memory")
-        axs[1, 0].set_title("Memory Usage")
-        axs[1, 0].set_xlabel("Time (s)")
-        axs[1, 0].set_ylabel("Usage (%)")
-        axs[1, 0].legend()
+        axs[2].plot(time, used_RAM, label="Memory")
+        axs[2].set_title(f"Memory Usage\n{tot_RAM[0]}")
+        axs[2].set_xlabel("Time (s)")
+        axs[2].set_ylabel("Usage (kB)")
+        axs[2].legend()
 
         # Plot power usage
-        axs[1, 1].plot(time, power_usage, label="Power")
-        axs[1, 1].set_title("Power Usage")
-        axs[1, 1].set_xlabel("Time (s)")
-        axs[1, 1].set_ylabel("Usage (Watts)")
-        axs[1, 1].legend()
+        # axs[1, 1].plot(time, power_usage, label="Power")
+        # axs[1, 1].set_title("Power Usage")
+        # axs[1, 1].set_xlabel("Time (s)")
+        # axs[1, 1].set_ylabel("Usage (Watts)")
+        # axs[1, 1].legend()
 
         # Adjust layout
         plt.tight_layout()
         plt.savefig('trt_integration/profiling/resource_jetson.png')
         # plt.show()
 
-    except Exception:
+    except:
         pass
 
 def display_resource():
