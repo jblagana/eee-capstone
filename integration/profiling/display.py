@@ -61,6 +61,7 @@ def display_resource_jetson():
         gpu_usage = []
         used_RAM = []
         tot_RAM = []
+        power_usage = []
 
         # Open the CSV file
         csv_file_path = os.path.join(profiling_folder, "resource_log-jetson.csv")
@@ -73,36 +74,37 @@ def display_resource_jetson():
                 gpu_usage.append(float(row[6]))
                 used_RAM.append(float(row[7]))
                 tot_RAM.append(float(row[8]))
+                power_usage.append(float(row[9]))
                 
 
-        # Create a 1x3 subplot
-        fig, axs = plt.subplots(1, 3, figsize=(9, 3))
+        # Create a 2x2 subplot
+        fig, axs = plt.subplots(2, 2, figsize=(9, 6))
 
         # Plot CPU usage
-        axs[0].plot(time, cpu_usage, label="CPU")
-        axs[0].set_title("CPU Usage")
-        axs[0].set_ylabel("Usage (%)")
-        axs[0].legend()
+        axs[0,0].plot(time, cpu_usage, label="CPU")
+        axs[0,0].set_title("CPU Usage")
+        axs[0,0].set_ylabel("Usage (%)")
+        axs[0,0].legend()
 
         # Plot GPU usage
-        axs[1].plot(time, gpu_usage, label="GPU")
-        axs[1].set_title("GPU Usage")
-        axs[1].set_ylabel("Usage (%)")
-        axs[1].legend()
+        axs[0,1].plot(time, gpu_usage, label="GPU")
+        axs[0,1].set_title("GPU Usage")
+        axs[0,1].set_ylabel("Usage (%)")
+        axs[0,1].legend()
 
         # Plot memory usage
-        axs[2].plot(time, [100*x/y for x,y in zip(used_RAM, tot_RAM)], label="Memory")
-        axs[2].set_title(f"Memory Usage\n(Total RAM = {tot_RAM[0]:.2e} kB)")
-        axs[2].set_xlabel("Time (s)")
-        axs[2].set_ylabel("Usage (%)")
-        axs[2].legend()
+        axs[1,0].plot(time, [100*x/y for x,y in zip(used_RAM, tot_RAM)], label="Memory")
+        axs[1,0].set_title(f"Memory Usage\n(Total RAM = {tot_RAM[0]:.2e} kB)")
+        axs[1,0].set_xlabel("Time (s)")
+        axs[1,0].set_ylabel("Usage (%)")
+        axs[1,0].legend()
 
         # Plot power usage
-        # axs[1, 1].plot(time, power_usage, label="Power")
-        # axs[1, 1].set_title("Power Usage")
-        # axs[1, 1].set_xlabel("Time (s)")
-        # axs[1, 1].set_ylabel("Usage (Watts)")
-        # axs[1, 1].legend()
+        axs[1, 1].plot(time, power_usage, label="Power")
+        axs[1, 1].set_title("Power Usage")
+        axs[1, 1].set_xlabel("Time (s)")
+        axs[1, 1].set_ylabel("Usage (Watts)")
+        axs[1, 1].legend()
 
         # Adjust layout
         plt.tight_layout()
