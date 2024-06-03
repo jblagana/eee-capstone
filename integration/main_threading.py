@@ -47,7 +47,7 @@ def parse_args():
     parser.add_argument(
         "---max-age",
         type=int,
-        default=500,
+        default=100,
         help="Maximum consecutive missed detections before deleting ID."
     )
     
