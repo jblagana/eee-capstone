@@ -260,26 +260,17 @@ class LSTMModel(nn.Module):
         return out
 
 def infer(input_sequence):
-    n_features = 6
-    sequence_length = 20
     input_sequence = np.array(input_sequence)
-
-    # Create an instance of the LSTM model
-    model = LSTMModel(n_features, hidden_size=64)
-
-    # Load the saved weights
-    model.load_state_dict(torch.load(f'inference\LSTM_v2\skipping_analysis\lstm_models\lstm_model_skip{skip}_{RBP_threshold:.3f}.pt'))
-    model.eval()  # Set the model to evaluation mode
 
     #input_data = input_sequence[:, 2:].astype(np.float32)
     input_data = input_sequence[:, 1:].astype(np.float32)   #Updated array slicing
-    
+
     input_data_scaled = scaler.transform(input_data)
     input_data = torch.tensor(input_data_scaled, dtype=torch.float32)
 
     # Make predictions
     with torch.no_grad():
-        output = model(input_data.unsqueeze(0))  # Add batch dimension
+        output = lstm_model(input_data.unsqueeze(0))  # Add batch dimension
         RBP = (output).squeeze().cpu().numpy()
 
     return RBP
@@ -508,21 +499,34 @@ if __name__ == "__main__":
 
     #---------------RBP Thresholds---------------#
     if skip == 1:
-        RBP_threshold = 0.503
+        RBP_threshold = 0.514
     elif skip == 2:
-        RBP_threshold = 0.484
+        RBP_threshold = 0.492
     elif skip == 3:
-        RBP_threshold = 0.484      
+        RBP_threshold = 0.503      
     elif skip == 4:
-        RBP_threshold = 0.507
+        RBP_threshold = 0.459
     elif skip == 5:
-        RBP_threshold = 0.500
+        RBP_threshold = 0.478
     elif skip == 6:
-        RBP_threshold = 0.370
+        f1 = 0.75
+        RBP_threshold = 0.409
 
-    #---------------Feature Scaling---------------#
-    with open(f'./inference/LSTM_v2/skipping_analysis/scaler/scaler_skip{skip}.pkl','rb') as file:
-        scaler = pickle.load(file)    
+    #---------------Inference LSTM Model Loading and Feature Scaling---------------#
+    n_features = 6
+    sequence_length = 20
+
+    # Create an instance of the LSTM model
+    lstm_model = LSTMModel(n_features, hidden_size=64)
+
+    # Load the saved weights
+    lstm_model_path = f'./inference/LSTM_v2/conf_0.481/lstm_models/lstm_model_skip{skip}_f1={f1}_th={RBP_threshold:.3f}.pt'
+    lstm_model.load_state_dict(torch.load(lstm_model_path))
+    print(f"Loaded LSTM model = lstm_model_skip{skip}_f1={f1}_th={RBP_threshold:.3f}.pt")
+    lstm_model.eval()  # Set the model to evaluation mode
+
+    with open(f'./inference/LSTM_v2/conf_0.481/scaler/scaler_skip{skip}.pkl','rb') as file:
+        scaler = pickle.load(file)  
 
     #---------------Source---------------#
     try:
