@@ -47,7 +47,7 @@ def parse_args():
     parser.add_argument(
         "---max-age",
         type=int,
-        default=500,
+        default=100,
         help="Maximum consecutive missed detections before deleting ID."
     )
     
@@ -66,7 +66,7 @@ def parse_args():
     parser.add_argument(
         "--skip-frames",
         type=int,
-        default=1,
+        default=6,
         help="Frames to be skipped during processing."
     )
 
@@ -366,7 +366,7 @@ def process_frames(filename):
             #print(f"    ------T2: Extrated from buffer & start processing: frame# {frame_num}")
             
             #Perform detection & tracking on frame
-            results = model.track(frame, persist=True, verbose=False, tracker=bytetrack_path)
+            results = model.track(frame, conf=0.481, persist=True, verbose=False, tracker=bytetrack_path)
             if results[0].boxes.id is not None:
                 boxes = results[0].boxes.xywh.cpu() 
                 track_ids = results[0].boxes.id.int().cpu().tolist()
@@ -414,7 +414,11 @@ def process_frames(filename):
                     print(f"    ------T2: Displaying annotated frame #{frame_num}")
                     cv.imshow(WIN_NAME, annotated_frame)
                     cv.imshow(WIN_NAME, annotated_frame)
-                    if cv.waitKey(1) & 0xFF == 27:  # ESC key
+                    if cv.waitKey(1) & 0xFF == 'q':  # ESC key
+                        print("Q key pressed. Resetting persist...")
+                        print(f"Persist:{persist}")
+                        persist = 0
+                    elif cv.waitKey(1) & 0xFF == 27:  # ESC key
                         thread_interrupt = True
 
                 if save_vid:
@@ -458,8 +462,11 @@ def process_video(source, filename):
                 break
             time.sleep(0.5)
 
+
+
     except KeyboardInterrupt:
         print(">>>>>Process_video: Keyboard interrupt. Stopping threads<<<<<")
+        #persist = 0
         thread_interrupt = True
 
 
@@ -499,14 +506,19 @@ if __name__ == "__main__":
 
     #---------------RBP Thresholds---------------#
     if skip == 1:
+        f1 = 0.7368
         RBP_threshold = 0.514
     elif skip == 2:
+        f1 = 0.7234
         RBP_threshold = 0.492
     elif skip == 3:
+        f1 = 0.7317
         RBP_threshold = 0.503      
     elif skip == 4:
+        f1 = 0.6957
         RBP_threshold = 0.459
     elif skip == 5:
+        f1 = 0.7273
         RBP_threshold = 0.478
     elif skip == 6:
         f1 = 0.75
