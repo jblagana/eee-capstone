@@ -303,7 +303,7 @@ def capture_frames(source):
             frame = cv.resize(frame, (frame_width,frame_height))
             frame_queue.put((frame_num, frame))
             # to_annotate_queue.put((frame_num, frame))
-            print(f"T1: Adding to buffer: frame# {frame_num}")
+            # print(f"T1: Adding to buffer: frame# {frame_num}")
         
         #Test
         # if frame_num == 20:
@@ -311,10 +311,10 @@ def capture_frames(source):
     cap.release()
     capture_thread_done = True
 
-    if thread_interrupt:
-        print(">>>>>T1: Keyboard Interrupt. Thread terminating.<<<<<")    
-    else:
-        print("------T1: ALL FRAMES CAPTURED. CAPTURE_FRAME THREAD STOP.------")
+    # if thread_interrupt:
+    #     print(">>>>>T1: Keyboard Interrupt. Thread terminating.<<<<<")    
+    # else:
+    #     print("------T1: ALL FRAMES CAPTURED. CAPTURE_FRAME THREAD STOP.------")
 
 
 def process_frames(filename):
@@ -323,6 +323,7 @@ def process_frames(filename):
     global frame_width, frame_height
     global WIN_NAME
     global display_vid, save_vid, output_path
+    global persist
 
     #Frame variables
     # frames = []
@@ -385,13 +386,13 @@ def process_frames(filename):
                 loitering, 
                 concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
 
-            print(f"    ------T2: Done processing: frame# {frame_num}")
+            # print(f"    ------T2: Done processing: frame# {frame_num}")
             
             if len(module_result) == 20:
                 RBP = infer(module_result)
                 # RBP_val = RBP
                 module_result = []
-                print(f"                        >>>T2: RBP inference done.<<<")
+                # print(f"                        >>>T2: RBP inference done.<<<")
 
             # FPS Manual Calculation
             fps_end_time = time.perf_counter()
@@ -411,24 +412,22 @@ def process_frames(filename):
                 annotated_frame = annotate_video(frame, RBP)
 
                 if display_vid:
-                    print(f"    ------T2: Displaying annotated frame #{frame_num}")
+                    # print(f"    ------T2: Displaying annotated frame #{frame_num}")
                     cv.imshow(WIN_NAME, annotated_frame)
                     cv.imshow(WIN_NAME, annotated_frame)
-                    key = cv.waitKey(1) & 0xFF
-                    if key == ord('q'):  # ESC key
+                    if cv.waitKey(1) & 0xFF == ord('q'):  # ESC key
+                        print("Q key pressed. Resetting persist...")
                         persist = 0
-                        print(f"Q key pressed. Persist:{persist}")
-                        #print(f"Persist:{persist}")
-                        
-                    elif key == 27:  # ESC key
+                    elif cv.waitKey(1) & 0xFF == 27:  # ESC key
                         thread_interrupt = True
+                    print(f"Persist:{persist}")
 
                 if save_vid:
                     cap_out.write(frame)
         except queue.Empty:
             if capture_thread_done:
                 process_thread_done = True
-                print("    ------T2: EMPTY BUFFER. NOT ENOUGH FRAMES FOR PROCESSING.------")
+                # print("    ------T2: EMPTY BUFFER. NOT ENOUGH FRAMES FOR PROCESSING.------")
                 break
             else:
                 continue
@@ -440,10 +439,10 @@ def process_frames(filename):
 
     process_thread_done = True
 
-    if thread_interrupt:
-        print(">>>>>T2: Keyboard Interrupt. Thread terminating.<<<<<")    
-    else:
-        print("    ------T2: PROCESS_FRAME THREAD STOP.------")
+    # if thread_interrupt:
+    #     print(">>>>>T2: Keyboard Interrupt. Thread terminating.<<<<<")    
+    # else:
+    #     print("    ------T2: PROCESS_FRAME THREAD STOP.------")
 
 
 def process_video(source, filename):
@@ -460,11 +459,6 @@ def process_video(source, filename):
         process_thread.start()
 
         while not thread_interrupt:
-
-            # key = cv.waitKey(1) & 0xFF
-            # if key == 'q':
-            #     persist = 0
-            #     print("Persist: 0")
             if process_thread_done:
                 break
             time.sleep(0.5)
