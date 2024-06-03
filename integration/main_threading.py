@@ -66,7 +66,7 @@ def parse_args():
     parser.add_argument(
         "--skip-frames",
         type=int,
-        default=1,
+        default=6,
         help="Frames to be skipped during processing."
     )
 
