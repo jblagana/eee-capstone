@@ -499,14 +499,19 @@ if __name__ == "__main__":
 
     #---------------RBP Thresholds---------------#
     if skip == 1:
+        f1 = 0.7368
         RBP_threshold = 0.514
     elif skip == 2:
+        f1 = 0.7234
         RBP_threshold = 0.492
     elif skip == 3:
+        f1 = 0.7317
         RBP_threshold = 0.503      
     elif skip == 4:
+        f1 = 0.6957
         RBP_threshold = 0.459
     elif skip == 5:
+        f1 = 0.7273
         RBP_threshold = 0.478
     elif skip == 6:
         f1 = 0.75
