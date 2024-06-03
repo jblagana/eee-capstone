@@ -414,11 +414,13 @@ def process_frames(filename):
                     print(f"    ------T2: Displaying annotated frame #{frame_num}")
                     cv.imshow(WIN_NAME, annotated_frame)
                     cv.imshow(WIN_NAME, annotated_frame)
-                    if cv.waitKey(1) & 0xFF == 'q':  # ESC key
-                        print("Q key pressed. Resetting persist...")
-                        print(f"Persist:{persist}")
+                    key = cv.waitKey(1) & 0xFF
+                    if key == ord('q'):  # ESC key
                         persist = 0
-                    elif cv.waitKey(1) & 0xFF == 27:  # ESC key
+                        print(f"Q key pressed. Persist:{persist}")
+                        #print(f"Persist:{persist}")
+                        
+                    elif key == 27:  # ESC key
                         thread_interrupt = True
 
                 if save_vid:
@@ -458,6 +460,11 @@ def process_video(source, filename):
         process_thread.start()
 
         while not thread_interrupt:
+
+            # key = cv.waitKey(1) & 0xFF
+            # if key == 'q':
+            #     persist = 0
+            #     print("Persist: 0")
             if process_thread_done:
                 break
             time.sleep(0.5)
