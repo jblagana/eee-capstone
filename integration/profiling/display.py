@@ -63,7 +63,7 @@ def display_resource_jetson():
         tot_RAM = []
 
         # Open the CSV file
-        csv_file_path = os.path.join(profiling_folder, "resource_log-Jetson.csv")
+        csv_file_path = os.path.join(profiling_folder, "resource_log-jetson.csv")
         with open(csv_file_path, 'r') as file:
             csv_reader = csv.reader(file)
             header = next(csv_reader)  # Skip the header row
@@ -91,10 +91,10 @@ def display_resource_jetson():
         axs[1].legend()
 
         # Plot memory usage
-        axs[2].plot(time, used_RAM, label="Memory")
-        axs[2].set_title(f"Memory Usage\n{tot_RAM[0]}")
+        axs[2].plot(time, [100*x/y for x,y in zip(used_RAM, tot_RAM)], label="Memory")
+        axs[2].set_title(f"Memory Usage\n(Total RAM = {tot_RAM[0]:.2e} kB)")
         axs[2].set_xlabel("Time (s)")
-        axs[2].set_ylabel("Usage (kB)")
+        axs[2].set_ylabel("Usage (%)")
         axs[2].legend()
 
         # Plot power usage
@@ -148,8 +148,8 @@ def display_resource():
 
         # Adjust layout
         plt.tight_layout()
-        # plt.savefig('integration/profiling/resource_nonJetson.png')
-        plt.show()
+        plt.savefig('integration/profiling/resource_nonJetson.png')
+        # plt.show()
 
     except:
         pass
