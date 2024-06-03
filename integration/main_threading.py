@@ -366,7 +366,7 @@ def process_frames(filename):
             #print(f"    ------T2: Extrated from buffer & start processing: frame# {frame_num}")
             
             #Perform detection & tracking on frame
-            results = model.track(frame, persist=True, verbose=False, tracker=bytetrack_path)
+            results = model.track(frame, conf=0.481, persist=True, verbose=False, tracker=bytetrack_path)
             if results[0].boxes.id is not None:
                 boxes = results[0].boxes.xywh.cpu() 
                 track_ids = results[0].boxes.id.int().cpu().tolist()
