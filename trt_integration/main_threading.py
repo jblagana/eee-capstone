@@ -348,12 +348,6 @@ def parse_args():
         action="store_false",
         help="Disables logging of FPS",
     )
-    # Annotation
-    parser.add_argument(
-        "--no-annotate",
-        action="store_false",
-        help="Disables annotation of frame",
-    )    
     # Skip frames
     parser.add_argument(
         "--skip-frames",
@@ -566,11 +560,8 @@ def capture_frames(source):
             frame = cv.resize(frame, (frame_width,frame_height))
             frame_queue.put((frame_num, frame))
             # to_annotate_queue.put((frame_num, frame))
-            print(f"T1: Adding to buffer: frame# {frame_num}")
-        
-        #Test
-        # if frame_num == 20:
-        #     break
+            # print(f"T1: Adding to buffer: frame# {frame_num}")
+
     cap.release()
     capture_thread_done = True
 
@@ -584,12 +575,7 @@ def process_frames(filename):
     global frame_queue, capture_thread_done, process_thread_done, thread_interrupt
     global frame_width, frame_height, capture_width, capture_height
     global WIN_NAME
-    global display_vid, save_vid, annotate
-
-    #Frame variables
-    # frames = []
-    # frames_cnt = []
-    # frames_dict = {}    #id: cnt, val: frame
+    global display_vid
     
     #Loitering variables
     missed_detect = {}
@@ -599,10 +585,6 @@ def process_frames(filename):
     #Inference variables
     module_result = []  #stores results from the 3 modules for 20 frames
     RBP = 0
-
-    #Test variables
-    # module_result_test = []
-    # model_test = YOLO(yolo_path)
 
     if display_vid:
         cv.namedWindow(WIN_NAME, cv.WINDOW_AUTOSIZE)
@@ -614,10 +596,6 @@ def process_frames(filename):
         try:
             #Getting frame from buffer
             frame_num, frame = frame_queue.get(timeout=1)
-
-            #Testing
-            # frames.append(frame)
-            # frames_cnt.append(frame_num)
 
             #print(f"    ------T2: Extrated from buffer & start processing: frame# {frame_num}")
             
@@ -675,14 +653,14 @@ def process_frames(filename):
                     loitering, 
                     concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
 
-                print(f"    ------T2: Done processing: frame# {frame_num}")
+                # print(f"    ------T2: Done processing: frame# {frame_num}")
                 
                 # Make predictions every 20 frames
                 if len(module_result) == 20:
                     RBP = infer(module_result)
                     # RBP_val = RBP
                     module_result = []
-                    print(f"                        >>>T2: RBP inference done.<<<")
+                    # print(f"                        >>>T2: RBP inference done.<<<")
 
                 # FPS Manual Calculation
                 fps_end_time = time.perf_counter()
@@ -698,15 +676,19 @@ def process_frames(filename):
                 fps_start_time = time.perf_counter()
                 
             if display_vid:          
-                if annotate:
-                    #Video annotation
-                    annotated_frame = annotate_video(frame, RBP)
+                #Video annotation
+                annotated_frame = annotate_video(frame, RBP)
 
-                    print(f"    ------T2: Displaying annotated frame #{frame_num}")
-                    cv.imshow(WIN_NAME, annotated_frame)
-                    cv.imshow(WIN_NAME, annotated_frame)
-                    if cv.waitKey(1) & 0xFF == 27:  # ESC key
-                        thread_interrupt = True
+                # print(f"    ------T2: Displaying annotated frame #{frame_num}")
+                cv.imshow(WIN_NAME, annotated_frame)
+                key = cv.waitKey(1)
+                if key == 27:
+                    #print("Terminating thread2")
+                    thread_interrupt = True
+                    break
+                elif key == ord("Q") or key == ord("q"):
+                    persist = 0
+                    #print(f"Q pressed. Persist:{persist}")
 
         except queue.Empty:
             if capture_thread_done:
@@ -721,10 +703,10 @@ def process_frames(filename):
 
     process_thread_done = True
 
-    if thread_interrupt:
-        print(">>>>>T2: Keyboard Interrupt. Thread terminating.<<<<<")    
-    else:
-        print("    ------T2: PROCESS_FRAME THREAD STOP.------")
+    # if thread_interrupt:
+    #     print(">>>>>T2: Keyboard Interrupt. Thread terminating.<<<<<")    
+    # else:
+    #     print("    ------T2: PROCESS_FRAME THREAD STOP.------")
 
 
 def process_video(source, filename):
@@ -768,22 +750,6 @@ def process_video(source, filename):
     thread_interrupt = False
     persist = 0
 
-def reset_persist():
-    """Function to reset the persist variable"""
-    global persist
-    if persist == 1:
-        persist = 0
-        print("Persist reset to 0")
-
-def set_persist(value, delay):
-    """Function to set persist and start the timer"""
-    global persist
-    persist = value
-    if value == 1:
-        print("Persist set to 1")
-        timer = threading.Timer(delay, reset_persist)
-        timer.start()
-
 def annotate_video(frame, RBP):
     global RBP_threshold, RBP_info
     global frame_width, frame_height
@@ -799,13 +765,10 @@ def annotate_video(frame, RBP):
     RBP_text = RBP_info.format(RBP)
 
     if RBP > RBP_threshold:
-        if args.input == 'video':
-            persist = 1                 # Set persist to 1 (for the duration of the vid)
-        else:
-            set_persist(1, 3)           # Set persist to 1 and reset it after 3 seconds
-        text_color = (0, 0, 128)        # Red color
+        persist = 1
+        text_color = (0, 0, 128)  # Red color
     else:
-        text_color = (0, 128, 0)        # Green color
+        text_color = (0, 128, 0)   # Green color
 
     # Draw white background rectangle
     cv.rectangle(frame, (x_rect, y_rect), (x_rect + width_rect, y_rect + height_rect), (255, 255, 255), -1)
@@ -915,7 +878,6 @@ if __name__ == "__main__":
 
     display_vid = args.no_display
     RBP_info = ("RBP: {:.2f}")
-    annotate = args.no_annotate
 
     persist = 0
     font = cv.FONT_HERSHEY_SIMPLEX
