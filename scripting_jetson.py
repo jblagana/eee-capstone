@@ -312,7 +312,7 @@ def vid_processing(folder_path, csv_filename, field_names):
         EXPLICIT_BATCH = 1 << (int)(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
 
         # Initialize YOLOv8 Detector object using a TensorRT engine file
-        model = YoloTRT(library=PLUGIN_LIBRARY, engine=engine_file_path, conf=0.25)
+        model = YoloTRT(library=PLUGIN_LIBRARY, engine=engine_file_path, conf=0.481)
 
     except:
         print("Failed to load YOLO model.")
@@ -461,7 +461,7 @@ def vid_processing(folder_path, csv_filename, field_names):
         
 if __name__ == "__main__":
     # skip = 5 # log only every x frames
-    skip = 6
+    skip = 5
 
     #Declaring CSV filename and header fields
     csv_filename = f"inference/LSTM_v2/conf_0.481/training_csv/train_inf5050_conf0.481_skip{skip}_jetson.csv"
