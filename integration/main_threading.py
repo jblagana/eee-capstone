@@ -414,7 +414,6 @@ def process_frames(filename):
                 if display_vid:
                     # print(f"    ------T2: Displaying annotated frame #{frame_num}")
                     cv.imshow(WIN_NAME, annotated_frame)
-                    cv.imshow(WIN_NAME, annotated_frame)
                     key = cv.waitKey(1)
                     if key == 27:
                         print("Terminating thread2")
