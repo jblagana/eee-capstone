@@ -415,12 +415,14 @@ def process_frames(filename):
                     # print(f"    ------T2: Displaying annotated frame #{frame_num}")
                     cv.imshow(WIN_NAME, annotated_frame)
                     cv.imshow(WIN_NAME, annotated_frame)
-                    if cv.waitKey(1) & 0xFF == ord('q'):  # ESC key
-                        print("Q key pressed. Resetting persist...")
-                        persist = 0
-                    elif cv.waitKey(1) & 0xFF == 27:  # ESC key
+                    key = cv.waitKey(1)
+                    if key == 27:
+                        print("Terminating thread2")
                         thread_interrupt = True
-                    print(f"Persist:{persist}")
+                        break
+                    elif key == ord("Q") or key == ord("q"):
+                        persist = 0
+                        #print(f"Q pressed. Persist:{persist}")
 
                 if save_vid:
                     cap_out.write(frame)
