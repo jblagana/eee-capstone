@@ -620,7 +620,7 @@ def process_video(source, filename):
                 online_boxes = torch.tensor(online_boxes, dtype=torch.float32)
 
                 #Crowd density module
-                crowd_density = crowd_density_module(online_boxes, frame)
+                crowd_density = crowd_density_module(online_boxes)
 
                 #Concealment module
                 concealment_counts = concealment_module(clss)
@@ -645,25 +645,25 @@ def process_video(source, filename):
             elif not detections:
                 print("No detections found!")
 
-        # FPS Manual Calculation
-        if fps_log:
-            fps_end_time = time.perf_counter()
-            time_diff = fps_end_time - fps_start_time
-            if time_diff == 0:
-                manual_fps = 0.0
-            else:
-                manual_fps = (skip / time_diff)
+            # FPS Manual Calculation
+            if fps_log:
+                fps_end_time = time.perf_counter()
+                time_diff = fps_end_time - fps_start_time
+                if time_diff == 0:
+                    manual_fps = 0.0
+                else:
+                    manual_fps = (skip / time_diff)
 
-            with open(csv_file, 'a', newline='') as csvfile:
-                        csv_writer = csv.writer(csvfile)
-                        csv_writer.writerow([filename, frame_num, manual_fps])
+                with open(csv_file, 'a', newline='') as csvfile:
+                            csv_writer = csv.writer(csvfile)
+                            csv_writer.writerow([filename, frame_num, manual_fps])
 
-            fps_start_time = time.perf_counter()
+                fps_start_time = time.perf_counter()
 
         if display_vid:
-            if annotate:
-                frame = annotate_video(frame, RBP)
-            cv.imshow(WIN_NAME, frame)
+                if annotate:
+                    frame = annotate_video(frame, RBP)
+                cv.imshow(WIN_NAME, frame)
 
     cap.release()
     if display_vid:
@@ -810,6 +810,7 @@ if __name__ == "__main__":
 
     frame_width = 640       #360p: 640x360 pixels
     frame_height = 360
+    frame_area = frame_height*frame_width
     font_scale = min(frame_width, frame_height) / 500
     thickness = max(1, int(font_scale * 2))
     x_text, y_text = position = (frame_width - 20, 20)

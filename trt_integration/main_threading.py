@@ -51,7 +51,7 @@ class YoloTRT():
 
         runtime = trt.Runtime(TRT_LOGGER)
         self.engine = runtime.deserialize_cuda_engine(serialized_engine)
-        context = engine.create_execution_context()
+        context = self.engine.create_execution_context()
 
         self.batch_size = self.engine.max_batch_size
 
@@ -308,6 +308,10 @@ class YoloTRT():
             cv.rectangle(img, c1, c2, color, -1, cv.LINE_AA)  # filled
             cv.putText(img, label, (c1[0], c1[1] - 2), 0, tl / 3, [225, 255, 255], thickness=tf, lineType=cv.LINE_AA,)
 
+    def destroy(self):
+        # Remove any context from the top of the context stack, deactivating it
+        self.ctx.pop()
+
 def parse_args():
     parser = ArgumentParser(
         description="Robbery Prediction",
@@ -389,7 +393,6 @@ def crowd_density_module(boxes):
     global frame_area
     segmented_area = 0
     crowd_density = 0
-    
 
     #img = frame
     #frame_area = img.shape[0]*img.shape[1]
@@ -602,7 +605,7 @@ def process_frames(filename):
     # model_test = YOLO(yolo_path)
 
     if display_vid:
-        cv.namedWindow(WIN_NAME, cv.WINDOW_NORMAL)
+        cv.namedWindow(WIN_NAME, cv.WINDOW_AUTOSIZE)
         cv.waitKey(1)
     
     fps_start_time = time.perf_counter()
@@ -662,38 +665,38 @@ def process_frames(filename):
                         online_ids.append(tid)
                 online_boxes = torch.tensor(online_boxes, dtype=torch.float32)
 
-            #Feed detection results to the modules
-            crowd_density = crowd_density_module(online_boxes)
-            concealment_counts = concealment_module(clss)
-            missed_detect, misses_cnt, dwell_time, loitering = loitering_module(frame, boxes, online_ids, clss, class_names, missed_detect, misses_cnt, dwell_time, max_age)
+                #Feed detection results to the modules
+                crowd_density = crowd_density_module(online_boxes)
+                concealment_counts = concealment_module(clss)
+                missed_detect, misses_cnt, dwell_time, loitering = loitering_module(frame, boxes, online_ids, clss, class_names, missed_detect, misses_cnt, dwell_time, max_age)
 
-            module_result.append([frame_num, 
-                crowd_density, 
-                loitering, 
-                concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
+                module_result.append([frame_num, 
+                    crowd_density, 
+                    loitering, 
+                    concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
 
-            print(f"    ------T2: Done processing: frame# {frame_num}")
-            
-            # Make predictions every 20 frames
-            if len(module_result) == 20:
-                RBP = infer(module_result)
-                # RBP_val = RBP
-                module_result = []
-                print(f"                        >>>T2: RBP inference done.<<<")
+                print(f"    ------T2: Done processing: frame# {frame_num}")
+                
+                # Make predictions every 20 frames
+                if len(module_result) == 20:
+                    RBP = infer(module_result)
+                    # RBP_val = RBP
+                    module_result = []
+                    print(f"                        >>>T2: RBP inference done.<<<")
 
-            # FPS Manual Calculation
-            fps_end_time = time.perf_counter()
-            time_diff = fps_end_time - fps_start_time
-            if time_diff == 0:
-                manual_fps = 0.0
-            else:
-                manual_fps = (skip / time_diff)
+                # FPS Manual Calculation
+                fps_end_time = time.perf_counter()
+                time_diff = fps_end_time - fps_start_time
+                if time_diff == 0:
+                    manual_fps = 0.0
+                else:
+                    manual_fps = (skip / time_diff)
 
-            with open(csv_file, 'a', newline='') as csvfile:
-                        csv_writer = csv.writer(csvfile)
-                        csv_writer.writerow([filename, frame_num, manual_fps])
-            fps_start_time = time.perf_counter()
-            
+                with open(csv_file, 'a', newline='') as csvfile:
+                            csv_writer = csv.writer(csvfile)
+                            csv_writer.writerow([filename, frame_num, manual_fps])
+                fps_start_time = time.perf_counter()
+                
             if display_vid:          
                 if annotate:
                     #Video annotation
@@ -861,19 +864,19 @@ if __name__ == "__main__":
 
     if skip == 1:
         RBP_threshold = 0.514
-        f1 = 0.7059
+        f1 = 0.7368
     elif skip == 2:
         RBP_threshold = 0.492
-        f1 = 0.7368
+        f1 = 0.7234
     elif skip == 3:
         RBP_threshold = 0.503    
-        f1 = 0.7234
+        f1 = 0.7317
     elif skip == 4:
         RBP_threshold = 0.459
-        f1 = 0.7317
+        f1 = 0.6957
     elif skip == 5:
         RBP_threshold = 0.478
-        f1 = 0.6957
+        f1 = 0.7273
     elif skip == 6:
         f1 = 0.75
         RBP_threshold = 0.409
@@ -919,6 +922,7 @@ if __name__ == "__main__":
 
     frame_width = 640       #360p: 640x360 pixels
     frame_height = 360
+    frame_area = frame_height*frame_width
     font_scale = min(frame_width, frame_height) / 500
     thickness = max(1, int(font_scale * 2))
     x_text, y_text = position = (frame_width - 20, 20)
@@ -1053,4 +1057,4 @@ if __name__ == "__main__":
                     print(f"Profiling error: {e}")
     finally:
         # destroy the instance
-        yolov8_wrapper.destroy()
+        model.destroy()
