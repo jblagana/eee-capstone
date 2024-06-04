@@ -1,9 +1,3 @@
-""""
-TO DO:
-1. Benchmarking
-2. Parsing arguments
-"""
-
 import csv
 import cv2 as cv
 import cProfile
@@ -178,10 +172,16 @@ def process_video(source, filename):
     global skip
     global frame_width, frame_height
     global font_scale, thickness, position, x_text, y_text, WIN_NAME
-    global display_vid, save_vid, output_path
+    global display_vid, save_vid, output_path, persist
+
+    print("---------------------------------")
+    print(f"Process_video: {filename}")
 
     #Capture video
     cap = cv.VideoCapture(source)
+    if isinstance(source, int):
+        cap.set(cv.CAP_PROP_FPS, 30)
+
     if not cap.isOpened():
         print(f"Error: Could not open {source}. Closing the program.")
         sys.exit()
@@ -221,7 +221,7 @@ def process_video(source, filename):
     manual_fps = 0.0 
     fps_start_time = time.perf_counter()
 
-    while cv.waitKey(1) != 27: #ESC key
+    while True:
 
         has_frame, frame = cap.read()
         if not has_frame:
@@ -234,6 +234,7 @@ def process_video(source, filename):
 
         if frame_num % skip == 0:
             # Perform detection & tracking on frame
+            frame = cv.resize(frame, (frame_width,frame_height))
             results = model.track(frame, conf=0.481, persist=True, verbose=False, tracker=bytetrack_path)
             if results[0].boxes.id is not None:
                 boxes = results[0].boxes.xywh.cpu() 
@@ -282,27 +283,33 @@ def process_video(source, filename):
 
             with open(csv_file, 'a', newline='') as csvfile:
                         csv_writer = csv.writer(csvfile)
-                        csv_writer.writerow(["video_file", frame_num, manual_fps])
+                        csv_writer.writerow([filename, frame_num, manual_fps])
 
             fps_start_time = time.perf_counter()
 
 
         if save_vid or display_vid:          
-            #Video annotation
-            frame = annotate_video(frame, RBP)
+                #Video annotation
+            annotated_frame = annotate_video(frame, RBP)
 
             if display_vid:
-                cv.imshow(WIN_NAME, frame)
+                cv.imshow(WIN_NAME, annotated_frame)
+                key = cv.waitKey(1)
+                if key == 27:
+                    break
+                elif key == ord("Q") or key == ord("q"):
+                    persist = 0
+                    #print(f"Q pressed. Persist:{persist}")
 
             if save_vid:
                 cap_out.write(frame)
-
+    
     cap.release()
     if save_vid:
         cap_out.release()
     if display_vid:
         cv.destroyAllWindows()
-
+    print(f"Process_video: {filename} done")
         
 def annotate_video(frame, RBP):
     global RBP_threshold, RBP_info
@@ -313,7 +320,7 @@ def annotate_video(frame, RBP):
     global w_text_size, w_text_x, w_text_y, w_rect_x, w_rect_y, w_width_rect, w_height_rect
     global persist
 
-    frame = cv.resize(frame, (frame_width, frame_height))
+    #frame = cv.resize(frame, (frame_width, frame_height))
     
     # Display RBP
     RBP_text = RBP_info.format(RBP)
@@ -344,7 +351,7 @@ def parse_args():
     """Parse command line arguments."""
 
     parser = ArgumentParser(
-        description="Robbery Prediction",
+        description="Enhancing Robbery Prediction: A Two-Stage System Integrating Human Behavior-Driven Feature Extraction and LSTM-Based Neural Network Inference",
         add_help=True
     )
     
@@ -368,7 +375,7 @@ def parse_args():
     parser.add_argument(
         "---max-age",
         type=int,
-        default=500,
+        default=100,
         help="Maximum consecutive missed detections before deleting ID."
     )
     
@@ -431,14 +438,19 @@ if __name__ == "__main__":
 
     #---------------RBP Thresholds---------------#
     if skip == 1:
+        f1 = 0.7368
         RBP_threshold = 0.514
     elif skip == 2:
+        f1 = 0.7234
         RBP_threshold = 0.492
     elif skip == 3:
+        f1 = 0.7317
         RBP_threshold = 0.503      
     elif skip == 4:
+        f1 = 0.6957
         RBP_threshold = 0.459
     elif skip == 5:
+        f1 = 0.7273
         RBP_threshold = 0.478
     elif skip == 6:
         f1 = 0.75
@@ -542,11 +554,12 @@ if __name__ == "__main__":
     if isinstance(source, int):
         WIN_NAME = "RBP: Camera Feed"
         with cProfile.Profile() as pr:
-            process_video(source,"camera")
+            process_video(source,"Camera")
         stats = pstats.Stats(pr)
         stats.sort_stats(pstats.SortKey.TIME)
         #stats.print_stats()
-        stats.dump_stats(filename="needs_profiling.prof")
+        profile_filename = os.path.join(profiling_folder, f"profiling_cam-skip{skip}.prof")
+        stats.dump_stats(filename=profile_filename)
 
     elif isinstance(source, str):
         #List of all video files in the folder_path
@@ -564,14 +577,14 @@ if __name__ == "__main__":
 
                     else:
                         print("Invalid source.")
-                        sys.exit()
+                        continue
 
             stats = pstats.Stats(pr)
             stats.sort_stats(pstats.SortKey.TIME)
 
             # Save the profiling stats in the profiling folder
             # stats.print_stats()
-            profile_filename = os.path.join(profiling_folder, f"profiling_skip{skip}.prof")
+            profile_filename = os.path.join(profiling_folder, f"profiling_vid-skip{skip}.prof")
             stats.dump_stats(filename=profile_filename)
 
         except Exception as e:

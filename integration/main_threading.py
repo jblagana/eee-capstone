@@ -23,7 +23,7 @@ def parse_args():
     """Parse command line arguments."""
 
     parser = ArgumentParser(
-        description="Robbery Prediction",
+        description="Enhancing Robbery Prediction: A Two-Stage System Integrating Human Behavior-Driven Feature Extraction and LSTM-Based Neural Network Inference",
         add_help=True
     )
     
@@ -416,7 +416,7 @@ def process_frames(filename):
                     cv.imshow(WIN_NAME, annotated_frame)
                     key = cv.waitKey(1)
                     if key == 27:
-                        print("Terminating thread2")
+                        #print("Terminating thread2")
                         thread_interrupt = True
                         break
                     elif key == ord("Q") or key == ord("q"):
@@ -454,7 +454,7 @@ def process_video(source, filename):
         process_thread = threading.Thread(target=process_frames, args=(filename,))
 
         print("---------------------------------")
-        print(f"Process_video: Start processing {filename}")
+        print(f"Process_video: {filename}")
         print("Starting threads. CTRL+C to terminate threads.")
         capture_thread.start()
         process_thread.start()
@@ -463,9 +463,6 @@ def process_video(source, filename):
             if process_thread_done:
                 break
             time.sleep(0.5)
-
-
-
     except KeyboardInterrupt:
         print(">>>>>Process_video: Keyboard interrupt. Stopping threads<<<<<")
         #persist = 0
@@ -474,8 +471,7 @@ def process_video(source, filename):
 
     capture_thread.join()
     process_thread.join()
-    print("--------------------------------")
-    print("Process_video: All threads done.")
+    print(f"Process_video: {filename} done")
 
     # Clearing global variables
     with frame_queue.mutex:
