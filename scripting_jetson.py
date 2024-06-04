@@ -464,7 +464,7 @@ if __name__ == "__main__":
     skip = 6
 
     #Declaring CSV filename and header fields
-    csv_filename = f"inference/LSTM_v2/conf_0.481/training_csv/train_inf5050_conf0.481_skip{skip}_jetson.csv"
+    csv_filename = f"inference/LSTM_v2/conf_0.481/_jetson/training_csv_jetson/train_inf5050_conf0.481_skip{skip}_jetson.csv"
     field_names = ["video_id","frame_num","crowd_density","loitering","no_concealment","low_concealment","med_concealment","high_concealment","rbp"]
 
     #Declaring folder path of the videos to be processed
