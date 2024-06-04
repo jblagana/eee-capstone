@@ -28,6 +28,10 @@ import numpy as np
 
 class YoloTRT():
     def __init__(self, library, engine, conf):
+        # Create a Context on this device,
+        self.ctx = cuda.Device(0).make_context()
+        stream = cuda.Stream()
+        
         self.CONF_THRESH = conf 
         self.IOU_THRESHOLD = 0.4
         self.LEN_ALL_RESULT = 38001
@@ -47,6 +51,8 @@ class YoloTRT():
 
         runtime = trt.Runtime(TRT_LOGGER)
         self.engine = runtime.deserialize_cuda_engine(serialized_engine)
+        context = self.engine.create_execution_context()
+
         self.batch_size = self.engine.max_batch_size
 
         host_inputs = []
@@ -58,10 +64,12 @@ class YoloTRT():
         for binding in self.engine:
             size = trt.volume(self.engine.get_binding_shape(binding)) * self.batch_size
             dtype = trt.nptype(self.engine.get_binding_dtype(binding))
+            # Allocate host and device buffers
             host_mem = cuda.pagelocked_empty(size, dtype)
             cuda_mem = cuda.mem_alloc(host_mem.nbytes)
-
+            # Append the devcie buffer to device bindings
             bindings.append(int(cuda_mem))
+            # Append to the appropriate list
             if self.engine.binding_is_input(binding):
                 self.input_w = self.engine.get_binding_shape(binding)[-1]
                 self.input_h = self.engine.get_binding_shape(binding)[-2]
@@ -72,6 +80,8 @@ class YoloTRT():
                 cuda_outputs.append(cuda_mem)
         
         # Store
+        self.stream = stream
+        self.context = context
         self.host_inputs = host_inputs
         self.cuda_inputs = cuda_inputs
         self.host_outputs = host_outputs
@@ -108,24 +118,43 @@ class YoloTRT():
 
     def Inference(self, frame):
         img = frame
+        threading.Thread.__init__(self)
+        # Make self the active context, pushing it on top of the context stack.
+        self.ctx.push()        
+        
+        # Restore
+        stream = self.stream
+        # context = self.context
         host_inputs = self.host_inputs
         cuda_inputs = self.cuda_inputs
         host_outputs = self.host_outputs
         cuda_outputs = self.cuda_outputs
         bindings = self.bindings
 
+        # Do image preprocess
         input_image, image_raw, origin_h, origin_w = self.PreProcessImg(img)
+        
+        # Copy input image to host buffer
         np.copyto(host_inputs[0], input_image.ravel())
-        stream = cuda.Stream()
-        self.context = self.engine.create_execution_context()
+        
+        # stream = cuda.Stream()
+        # self.context = self.engine.create_execution_context()
+        
+        # Transfer input data  to the GPU.
         cuda.memcpy_htod_async(cuda_inputs[0], host_inputs[0], stream)
         t1 = time.time()
+        # Run inference.
         self.context.execute_async(self.batch_size, bindings, stream_handle=stream.handle)
+        # Transfer predictions back from the GPU.
         cuda.memcpy_dtoh_async(host_outputs[0], cuda_outputs[0], stream)
+        # Synchronize the stream
         stream.synchronize()
         t2 = time.time()
+        # Remove any context from the top of the context stack, deactivating it.
+        self.ctx.pop()
+        # Here we use the first row of output in that batch_size = 1
         output = host_outputs[0]
-        
+        # Do postprocess
         for i in range(self.batch_size):
             result_boxes, result_scores, result_classid = self.PostProcess(output[i * self.det_output_length: (i + 1) * self.det_output_length], origin_h, origin_w)            
 
@@ -139,7 +168,7 @@ class YoloTRT():
             det_res.append(det)
             # self.PlotBbox(box, img, color = colors(int(result_classid[j]), True), label="{}:{:.2f}".format(self.categories[int(result_classid[j])], result_scores[j]),)
         
-        return det_res, img
+        return det_res
 
     def PostProcess(self, output, origin_h, origin_w):
         """
@@ -279,6 +308,10 @@ class YoloTRT():
             cv.rectangle(img, c1, c2, color, -1, cv.LINE_AA)  # filled
             cv.putText(img, label, (c1[0], c1[1] - 2), 0, tl / 3, [225, 255, 255], thickness=tf, lineType=cv.LINE_AA,)
 
+    def destroy(self):
+        # Remove any context from the top of the context stack, deactivating it
+        self.ctx.pop()
+
 def parse_args():
     parser = ArgumentParser(
         description="Robbery Prediction",
@@ -360,7 +393,6 @@ def crowd_density_module(boxes):
     global frame_area
     segmented_area = 0
     crowd_density = 0
-    
 
     #img = frame
     #frame_area = img.shape[0]*img.shape[1]
@@ -573,7 +605,7 @@ def process_frames(filename):
     # model_test = YOLO(yolo_path)
 
     if display_vid:
-        cv.namedWindow(WIN_NAME, cv.WINDOW_NORMAL)
+        cv.namedWindow(WIN_NAME, cv.WINDOW_AUTOSIZE)
         cv.waitKey(1)
     
     fps_start_time = time.perf_counter()
@@ -590,7 +622,7 @@ def process_frames(filename):
             #print(f"    ------T2: Extrated from buffer & start processing: frame# {frame_num}")
             
             # YOLO Inference with TensorRT
-            detections, frame = model.Inference(frame)
+            detections = model.Inference(frame)
             logger.info("Detections: {}".format(detections))
 
             # If detection results is not empty
@@ -633,38 +665,38 @@ def process_frames(filename):
                         online_ids.append(tid)
                 online_boxes = torch.tensor(online_boxes, dtype=torch.float32)
 
-            #Feed detection results to the modules
-            crowd_density = crowd_density_module(online_boxes)
-            concealment_counts = concealment_module(clss)
-            missed_detect, misses_cnt, dwell_time, loitering = loitering_module(frame, boxes, online_ids, clss, class_names, missed_detect, misses_cnt, dwell_time, max_age)
+                #Feed detection results to the modules
+                crowd_density = crowd_density_module(online_boxes)
+                concealment_counts = concealment_module(clss)
+                missed_detect, misses_cnt, dwell_time, loitering = loitering_module(frame, boxes, online_ids, clss, class_names, missed_detect, misses_cnt, dwell_time, max_age)
 
-            module_result.append([frame_num, 
-                crowd_density, 
-                loitering, 
-                concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
+                module_result.append([frame_num, 
+                    crowd_density, 
+                    loitering, 
+                    concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
 
-            print(f"    ------T2: Done processing: frame# {frame_num}")
-            
-            # Make predictions every 20 frames
-            if len(module_result) == 20:
-                RBP = infer(module_result)
-                # RBP_val = RBP
-                module_result = []
-                print(f"                        >>>T2: RBP inference done.<<<")
+                print(f"    ------T2: Done processing: frame# {frame_num}")
+                
+                # Make predictions every 20 frames
+                if len(module_result) == 20:
+                    RBP = infer(module_result)
+                    # RBP_val = RBP
+                    module_result = []
+                    print(f"                        >>>T2: RBP inference done.<<<")
 
-            # FPS Manual Calculation
-            fps_end_time = time.perf_counter()
-            time_diff = fps_end_time - fps_start_time
-            if time_diff == 0:
-                manual_fps = 0.0
-            else:
-                manual_fps = (skip / time_diff)
+                # FPS Manual Calculation
+                fps_end_time = time.perf_counter()
+                time_diff = fps_end_time - fps_start_time
+                if time_diff == 0:
+                    manual_fps = 0.0
+                else:
+                    manual_fps = (skip / time_diff)
 
-            with open(csv_file, 'a', newline='') as csvfile:
-                        csv_writer = csv.writer(csvfile)
-                        csv_writer.writerow([filename, frame_num, manual_fps])
-            fps_start_time = time.perf_counter()
-            
+                with open(csv_file, 'a', newline='') as csvfile:
+                            csv_writer = csv.writer(csvfile)
+                            csv_writer.writerow([filename, frame_num, manual_fps])
+                fps_start_time = time.perf_counter()
+                
             if display_vid:          
                 if annotate:
                     #Video annotation
@@ -790,6 +822,7 @@ def annotate_video(frame, RBP):
         cv.putText(frame, warning_text, (w_text_x, w_text_y), font, warning_font_scale, warning_font_color, warning_font_thickness)
    
     return frame
+        
 
 if __name__ == "__main__":
 
@@ -831,19 +864,19 @@ if __name__ == "__main__":
 
     if skip == 1:
         RBP_threshold = 0.514
-        f1 = 0.7059
+        f1 = 0.7368
     elif skip == 2:
         RBP_threshold = 0.492
-        f1 = 0.7368
+        f1 = 0.7234
     elif skip == 3:
         RBP_threshold = 0.503    
-        f1 = 0.7234
+        f1 = 0.7317
     elif skip == 4:
         RBP_threshold = 0.459
-        f1 = 0.7317
+        f1 = 0.6957
     elif skip == 5:
         RBP_threshold = 0.478
-        f1 = 0.6957
+        f1 = 0.7273
     elif skip == 6:
         f1 = 0.75
         RBP_threshold = 0.409
@@ -889,6 +922,7 @@ if __name__ == "__main__":
 
     frame_width = 640       #360p: 640x360 pixels
     frame_height = 360
+    frame_area = frame_height*frame_width
     font_scale = min(frame_width, frame_height) / 500
     thickness = max(1, int(font_scale * 2))
     x_text, y_text = position = (frame_width - 20, 20)
@@ -961,63 +995,66 @@ if __name__ == "__main__":
     frame_queue = queue.Queue(maxsize=1000)  # Buffer size
 
     #---------------MAIN PROCESSING---------------#
-
-    # No Profiling
-    if not profile_code:
-        if isinstance(source, int):
-            WIN_NAME = "RBP: Camera Feed"
-            process_video(source, 'camera')
-            
-        elif isinstance(source, str):
-            #List of all video files in the folder_path
-            video_files = os.listdir(source)                    
-            
-            for video_file in video_files:
-                if video_file.endswith('.mp4'):
-                    WIN_NAME = f"RBP: {video_file}"
-                    video_path = os.path.join(source, video_file)
-                    process_video(video_path, video_file)
-                    persist = 0
-
-    # With Profiling
-    else:
-        if isinstance(source, int):
-            try:
-                with cProfile.Profile() as pr:
-                    WIN_NAME = "RBP: Camera Feed"
-                    process_video(source, 'Camera')
-                stats = pstats.Stats(pr)
-                stats.sort_stats(pstats.SortKey.TIME)
-                #stats.print_stats()
-                profile_filename = os.path.join(profiling_folder, f"profiling_cam-thread-skip{skip}.prof")
-                stats.dump_stats(filename=profile_filename)
+    try:
+        # No Profiling
+        if not profile_code:
+            if isinstance(source, int):
+                WIN_NAME = "RBP: Camera Feed"
+                process_video(source, 'camera')
                 
-            except Exception as e:
-                print(f"Profiling error: {e}")
+            elif isinstance(source, str):
+                #List of all video files in the folder_path
+                video_files = os.listdir(source)                    
                 
-        elif isinstance(source, str):
-            #List of all video files in the folder_path
-            video_files = os.listdir(source)
+                for video_file in video_files:
+                    if video_file.endswith('.mp4'):
+                        WIN_NAME = f"RBP: {video_file}"
+                        video_path = os.path.join(source, video_file)
+                        process_video(video_path, video_file)
+                        persist = 0
 
-            try:
-                with cProfile.Profile() as pr:
-                    for video_file in video_files:
-                        if video_file.endswith('.mp4'): 
-                            WIN_NAME = f"RBP: {video_file}"
-                            video_path = os.path.join(source, video_file)
-                            process_video(video_path, video_file)
-                            persist = 0
-                        else:
-                            print("Invalid source.")
-                            sys.exit()
+        # With Profiling
+        else:
+            if isinstance(source, int):
+                try:
+                    with cProfile.Profile() as pr:
+                        WIN_NAME = "RBP: Camera Feed"
+                        process_video(source, 'Camera')
+                    stats = pstats.Stats(pr)
+                    stats.sort_stats(pstats.SortKey.TIME)
+                    #stats.print_stats()
+                    profile_filename = os.path.join(profiling_folder, f"profiling_cam-thread-skip{skip}.prof")
+                    stats.dump_stats(filename=profile_filename)
+                    
+                except Exception as e:
+                    print(f"Profiling error: {e}")
+                    
+            elif isinstance(source, str):
+                #List of all video files in the folder_path
+                video_files = os.listdir(source)
 
-                stats = pstats.Stats(pr)
-                stats.sort_stats(pstats.SortKey.TIME)
+                try:
+                    with cProfile.Profile() as pr:
+                        for video_file in video_files:
+                            if video_file.endswith('.mp4'): 
+                                WIN_NAME = f"RBP: {video_file}"
+                                video_path = os.path.join(source, video_file)
+                                process_video(video_path, video_file)
+                                persist = 0
+                            else:
+                                print("Invalid source.")
+                                sys.exit()
 
-                # Save the profiling stats in the profiling folder
-                # stats.print_stats()
-                profile_filename = os.path.join(profiling_folder, f"profiling_vid-thread-skip{skip}.prof")
-                stats.dump_stats(filename=profile_filename)
+                    stats = pstats.Stats(pr)
+                    stats.sort_stats(pstats.SortKey.TIME)
 
-            except Exception as e:
-                print(f"Profiling error: {e}")
+                    # Save the profiling stats in the profiling folder
+                    # stats.print_stats()
+                    profile_filename = os.path.join(profiling_folder, f"profiling_vid-thread-skip{skip}.prof")
+                    stats.dump_stats(filename=profile_filename)
+
+                except Exception as e:
+                    print(f"Profiling error: {e}")
+    finally:
+        # destroy the instance
+        model.destroy()
