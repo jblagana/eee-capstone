@@ -16,60 +16,17 @@ import pycuda.autoinit  # noqa: F401
 import pycuda.driver as cuda
 import tensorrt as trt
 import threading
-import queue
 
 from trt_integration.bytetrack.byte_tracker import BYTETracker
+# from trt_integration.bytetrack.byte_tracker_v2 import BYTETracker
 from ultralytics.utils.plotting import Annotator, colors
 
 import torch
 import torch.nn as nn
 import numpy as np
 
-def parse_args():
-    parser = ArgumentParser(
-        description="Robbery Prediction",
-        add_help=True
-    )
-    # Input Arguments    
-    parser.add_argument(
-        "--input",
-        default="video",
-        help="Input type: 'video' or 0/1 (for CSI camera)"
-    )
-    # ByteTrack Arguments
-    parser.add_argument(
-        "--max-age",
-        type=int,
-        default=500,
-        help="Maximum consecutive missed detections before deleting ID."
-    )    
-    # Display window
-    parser.add_argument(
-        "--no-display",
-        action="store_false",
-        help="Disables playing of video while processing. Default = True.",
-    )
-    # Threading
-    parser.add_argument(
-        "--no-thread",
-        action="store_true",
-        help="Disables multi-threading (skipping only).",
-    )
-    # Skip frames
-    parser.add_argument(
-        "--skip-frames",
-        default=1,
-        help="Enables skipping of frames by input number. Default = 1 (no skip)",
-    )
-    args = parser.parse_args()
-    return args
-
 class YoloTRT():
     def __init__(self, library, engine, conf):
-        # Create a Context on this device,
-        self.ctx = cuda.Device(0).make_context()
-        stream = cuda.Stream()
-        
         self.CONF_THRESH = conf 
         self.IOU_THRESHOLD = 0.4
         self.LEN_ALL_RESULT = 38001
@@ -89,8 +46,6 @@ class YoloTRT():
 
         runtime = trt.Runtime(TRT_LOGGER)
         self.engine = runtime.deserialize_cuda_engine(serialized_engine)
-        context = self.engine.create_execution_context()
-
         self.batch_size = self.engine.max_batch_size
 
         host_inputs = []
@@ -102,12 +57,10 @@ class YoloTRT():
         for binding in self.engine:
             size = trt.volume(self.engine.get_binding_shape(binding)) * self.batch_size
             dtype = trt.nptype(self.engine.get_binding_dtype(binding))
-            # Allocate host and device buffers
             host_mem = cuda.pagelocked_empty(size, dtype)
             cuda_mem = cuda.mem_alloc(host_mem.nbytes)
-            # Append the devcie buffer to device bindings
+
             bindings.append(int(cuda_mem))
-            # Append to the appropriate list
             if self.engine.binding_is_input(binding):
                 self.input_w = self.engine.get_binding_shape(binding)[-1]
                 self.input_h = self.engine.get_binding_shape(binding)[-2]
@@ -118,8 +71,6 @@ class YoloTRT():
                 cuda_outputs.append(cuda_mem)
         
         # Store
-        self.stream = stream
-        self.context = context
         self.host_inputs = host_inputs
         self.cuda_inputs = cuda_inputs
         self.host_outputs = host_outputs
@@ -156,43 +107,24 @@ class YoloTRT():
 
     def Inference(self, frame):
         img = frame
-        threading.Thread.__init__(self)
-        # Make self the active context, pushing it on top of the context stack.
-        self.ctx.push()        
-        
-        # Restore
-        stream = self.stream
-        # context = self.context
         host_inputs = self.host_inputs
         cuda_inputs = self.cuda_inputs
         host_outputs = self.host_outputs
         cuda_outputs = self.cuda_outputs
         bindings = self.bindings
 
-        # Do image preprocess
         input_image, image_raw, origin_h, origin_w = self.PreProcessImg(img)
-        
-        # Copy input image to host buffer
         np.copyto(host_inputs[0], input_image.ravel())
-        
-        # stream = cuda.Stream()
-        # self.context = self.engine.create_execution_context()
-        
-        # Transfer input data  to the GPU.
+        stream = cuda.Stream()
+        self.context = self.engine.create_execution_context()
         cuda.memcpy_htod_async(cuda_inputs[0], host_inputs[0], stream)
         t1 = time.time()
-        # Run inference.
         self.context.execute_async(self.batch_size, bindings, stream_handle=stream.handle)
-        # Transfer predictions back from the GPU.
         cuda.memcpy_dtoh_async(host_outputs[0], cuda_outputs[0], stream)
-        # Synchronize the stream
         stream.synchronize()
         t2 = time.time()
-        # Remove any context from the top of the context stack, deactivating it.
-        self.ctx.pop()
-        # Here we use the first row of output in that batch_size = 1
         output = host_outputs[0]
-        # Do postprocess
+        
         for i in range(self.batch_size):
             result_boxes, result_scores, result_classid = self.PostProcess(output[i * self.det_output_length: (i + 1) * self.det_output_length], origin_h, origin_w)            
 
@@ -206,7 +138,7 @@ class YoloTRT():
             det_res.append(det)
             # self.PlotBbox(box, img, color = colors(int(result_classid[j]), True), label="{}:{:.2f}".format(self.categories[int(result_classid[j])], result_scores[j]),)
         
-        return det_res
+        return det_res, img
 
     def PostProcess(self, output, origin_h, origin_w):
         """
@@ -346,45 +278,56 @@ class YoloTRT():
             cv.rectangle(img, c1, c2, color, -1, cv.LINE_AA)  # filled
             cv.putText(img, label, (c1[0], c1[1] - 2), 0, tl / 3, [225, 255, 255], thickness=tf, lineType=cv.LINE_AA,)
 
-    def destroy(self):
-        # Remove any context from the top of the context stack, deactivating it
-        self.ctx.pop()
-
-def annotate_video(frame, RBP):
-    global RBP_threshold, RBP_info
-    global frame_width, frame_height
-    global font, font_scale, thickness, position, x_text, y_text, size_text
-    global x_rect, y_rect, width_rect, height_rect
-    global warning_text, warning_font_scale, warning_font_thickness, warning_font_color, bg_color
-    global w_text_size, w_text_x, w_text_y, w_rect_x, w_rect_y, w_width_rect, w_height_rect
-    global persist
-
-    # frame = cv.resize(frame, (frame_width, frame_height))
-    
-    # Display RBP
-    RBP_text = RBP_info.format(RBP)
-
-    if RBP > RBP_threshold:
-        persist = 1
-        text_color = (0, 0, 128)  # Red color
-    else:
-        text_color = (0, 128, 0)   # Green color
-
-    # Draw white background rectangle
-    cv.rectangle(frame, (x_rect, y_rect), (x_rect + width_rect, y_rect + height_rect), (255, 255, 255), -1)
-    
-    # Add text on top of the rectangle
-    cv.putText(frame, RBP_text, (x_text, y_text), font, font_scale, text_color, thickness, cv.LINE_AA)
-
-    # WARNING SIGN
-    if persist:
-        # Draw the red background rectangle
-        cv.rectangle(frame, (w_rect_x, w_rect_y), (w_rect_x + w_width_rect, w_rect_y + w_height_rect), bg_color, -1)
-
-        # Add the warning text
-        cv.putText(frame, warning_text, (w_text_x, w_text_y), font, warning_font_scale, warning_font_color, warning_font_thickness)
-   
-    return frame
+def parse_args():
+    parser = ArgumentParser(
+        description="Robbery Prediction",
+        add_help=True
+    )
+    # Input Arguments    
+    parser.add_argument(
+        "--input",
+        default="video",
+        help="Input type: 'video' or 0/1 (for CSI camera)"
+    )
+    # ByteTrack Arguments
+    parser.add_argument(
+        "--max-age",
+        type=int,
+        default=500,
+        help="Maximum consecutive missed detections before deleting ID."
+    )    
+    # Display window
+    parser.add_argument(
+        "--no-display",
+        action="store_false",
+        help="Disables playing of video while processing. Default = True.",
+    )
+    # Profiling
+    parser.add_argument(
+        "--no-profile",
+        action="store_false",
+        help="Disables profiling of code.",
+    )
+    # FPS Logging
+    parser.add_argument(
+        "--no-fps-log",
+        action="store_false",
+        help="Disables logging of FPS",
+    )
+    # Annotation
+    parser.add_argument(
+        "--no-annotate",
+        action="store_false",
+        help="Disables annotation of frame",
+    )    
+    # Skip frames
+    parser.add_argument(
+        "--skip-frames",
+        default=1,
+        help="Enables skipping of frames by input number. Default = 1 (no skip)",
+    )
+    args = parser.parse_args()
+    return args
 
 def concealment_module(class_list):
     """
@@ -416,6 +359,7 @@ def crowd_density_module(boxes):
     global frame_area
     segmented_area = 0
     crowd_density = 0
+    
 
     #img = frame
     #frame_area = img.shape[0]*img.shape[1]
@@ -447,11 +391,10 @@ def calculate_overlap(box1, box2):
     
     return overlap
 
-def loitering_module(boxes, track_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age):
+def loitering_module(frame, boxes, track_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age):
     """
     Updates dwell time of detected objects across frames.
     Args:
-        frame: used for annotating the video with the labeled detections
         boxes, track_ids, clss, names: results from YOLO model
         missed_detect: dictionary {Key: track ID, Value: True/False}. False value = not absent in the frame
         misses_cnt: dictionary {Key: track ID, Value: no. of consecutive missed detections}
@@ -465,7 +408,7 @@ def loitering_module(boxes, track_ids, clss, names, missed_detect, misses_cnt, d
         std_val: standard deviation of dwell times
 
     """
-    global save_vid, display_vid
+    global display_vid
     global class_names
 
     for box, track_id, cls in zip(boxes, track_ids, clss):
@@ -474,16 +417,14 @@ def loitering_module(boxes, track_ids, clss, names, missed_detect, misses_cnt, d
         dwell_time[track_id] = dwell_time.get(track_id, 0) + 1 #Increment its dwell time
         misses_cnt[track_id] = 0    #Reset misses_cnt to 0
         
-        #Annotate video
-        """
-        if save_vid or display_vid:
-            x1, y1, x2, y2 = box
-            cls_name = class_names[int(cls)]
-            xywh = [(x1 - x2 / 2), (y1 - y2 / 2), (x1 + x2 / 2), (y1 + y2 / 2)]
-            label = "#{}:{}".format(track_id, dwell_time[track_id])
-            annotator = Annotator(frame, line_width=1, example=names)
-            annotator.box_label(xywh, label=label, color=colors(int(cls), True), txt_color=(255, 255, 255))
-        """
+        # Annotate video
+        x1, y1, x2, y2 = box
+        cls_name = class_names[int(cls)]
+        xyxy = [x1,y1,x2,y2]
+        # xywh = [(x1 - x2 / 2), (y1 - y2 / 2), (x1 + x2 / 2), (y1 + y2 / 2)]
+        label = "#{}:{}".format(track_id, dwell_time[track_id])
+        annotator = Annotator(frame, line_width=1, example=names)
+        annotator.box_label(xyxy, label=label, color=colors(int(cls), True), txt_color=(255, 255, 255))
 
     # Check number of missed detections of each object
     if missed_detect:
@@ -518,7 +459,29 @@ class LSTMModel(nn.Module):
         return out
 
 def infer(input_sequence):
+    global skip
+    n_features = 6
+    sequence_length = 20
     input_sequence = np.array(input_sequence)
+
+    # Create an instance of the LSTM model
+    model = LSTMModel(n_features, hidden_size=64)
+
+    # Load the saved weights
+    if skip == 1:
+        model.load_state_dict(torch.load('./inference/LSTM_v2/skipping_analysis/lstm_models/lstm_model_skip1_0.503.pt'))   #No Skip
+    elif skip == 2:
+        model.load_state_dict(torch.load('./inference/LSTM_v2/skipping_analysis/lstm_models/lstm_model_skip2_0.484.pt'))        #Skip = 2
+    elif skip == 3:
+        model.load_state_dict(torch.load('./inference/LSTM_v2/skipping_analysis/lstm_models/lstm_model_skip3_0.484.pt'))        #Skip = 3
+    elif skip == 4:
+        model.load_state_dict(torch.load('./inference/LSTM_v2/skipping_analysis/lstm_models/lstm_model_skip4_0.507.pt'))        #Skip = 4
+    elif skip == 5:
+        model.load_state_dict(torch.load('./inference/LSTM_v2/skipping_analysis/lstm_models/lstm_model_skip5_0.500.pt'))        #Skip = 5
+    elif skip == 6:
+        model.load_state_dict(torch.load('./inference/LSTM_v2/skipping_analysis/lstm_models/lstm_model_skip6_0.370.pt'))        #Skip = 6
+
+    model.eval()  # Set the model to evaluation mode
 
     #input_data = input_sequence[:, 2:].astype(np.float32)
     input_data = input_sequence[:, 1:].astype(np.float32)   #Updated array slicing
@@ -528,7 +491,7 @@ def infer(input_sequence):
 
     # Make predictions
     with torch.no_grad():
-        output = lstm_model(input_data.unsqueeze(0))  # Add batch dimension
+        output = model(input_data.unsqueeze(0))  # Add batch dimension
         RBP = (output).squeeze().cpu().numpy()
 
     return RBP
@@ -560,223 +523,7 @@ def gstreamer_pipeline(
         )
     )
 
-
-def capture_frames(source):
-    global capture_thread_done, frame_queue
-    global display_vid
-    global frame_height, frame_width
-    global skip
-
-    frame_num = 0
-    # Capture source
-    if args.input == 'video':    
-        cap = cv.VideoCapture(source)
-    else:
-        cap = cv.VideoCapture(gstreamer_pipeline(sensor_id=source, flip_method=0), cv.CAP_GSTREAMER)
-    
-    if not cap.isOpened():
-        print(f"Error: Could not open {source}. Closing the program.")
-        sys.exit()
-
-    while not thread_interrupt:
-        has_frame, frame = cap.read()
-        if not has_frame:
-            break
-        
-        frame_num += 1
-        if frame_num % skip == 0:
-            frame = cv.resize(frame, (frame_width,frame_height))
-            frame_queue.put((frame_num, frame))
-
-    cap.release()
-    capture_thread_done = True
-
-    if thread_interrupt:
-        print(">>>>>T1: Keyboard Interrupt. Thread terminating.<<<<<")    
-    else:
-        print("------T1: ALL FRAMES CAPTURED. CAPTURE_FRAME THREAD STOP.------")
-
-def process_frames(filename):
-    global model, tracker, max_age, class_names
-    global frame_queue, capture_thread_done, process_thread_done, thread_interrupt
-    global frame_width, frame_height, capture_width, capture_height
-    global WIN_NAME
-    global display_vid
-    
-    #Loitering variables
-    missed_detect = {}
-    misses_cnt = {}
-    dwell_time = {}
-
-    #Inference variables
-    module_result = []  #stores results from the 3 modules for 20 frames
-    RBP = 0
-
-    if display_vid:
-        cv.namedWindow(WIN_NAME, cv.WINDOW_AUTOSIZE)
-        cv.waitKey(1)
-    
-    fps_start_time = time.perf_counter()
-    
-    while not thread_interrupt: #ESC key:
-        try:
-            #Getting frame from buffer
-            frame_num, frame = frame_queue.get(timeout=1)
-
-            #print(f"    ------T2: Extrated from buffer & start processing: frame# {frame_num}")
-            
-            # YOLO Inference with TensorRT
-            detections = model.Inference(frame)
-            logger.info("Detections: {}".format(detections))
-
-            # If detection results is not empty
-            if detections:
-                
-                # Format Conversion and Filtering
-                output = []   
-                boxes = []    
-                clss = []      
-                for detection in detections:      
-                    box = detection["box"]
-                    conf = detection["conf"]
-                    cls = detection["class_id"]
-                    output.append([float(box[0]), float(box[1]), float(box[2]), float(box[3]), conf])
-                    # output.append([float(box[0]), float(box[1]), float(box[2]), float(box[3]), conf, cls])
-                    boxes.append([box[0], box[1], box[2], box[3]])
-                    clss.append(cls)
-                output = torch.tensor(output, dtype=torch.float32)
-                # output = np.array(output)                                   # defaults to higher precision float64
-                boxes = torch.tensor(boxes, dtype=torch.float32)              # xyxy
-                if args.input == 'video':
-                    info_imgs = img_size = [frame_height, frame_width]
-                else:
-                    info_imgs = img_size = [capture_height, capture_width]
-
-                # Tracking
-                if len(output) != 0 :
-                    # Call the ByteTracker.update method with the filtered detections, frame information, and image size.
-                    online_targets = tracker.update(output, info_imgs, img_size)
-
-                    # Extracting  information about the tracked objects
-                    online_boxes = []
-                    online_ids = []    
-
-                    # Iterating through updated tracks
-                    for t in online_targets:
-                        tlwh = t.tlwh
-                        tid = t.track_id
-                        online_boxes.append(tlwh)
-                        online_ids.append(tid)
-                online_boxes = torch.tensor(online_boxes, dtype=torch.float32)
-
-                #Feed detection results to the modules
-                crowd_density = crowd_density_module(online_boxes)
-                concealment_counts = concealment_module(clss)
-                missed_detect, misses_cnt, dwell_time, loitering = loitering_module(frame, boxes, online_ids, clss, class_names, missed_detect, misses_cnt, dwell_time, max_age)
-
-                module_result.append([frame_num, 
-                    crowd_density, 
-                    loitering, 
-                    concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
-
-                # print(f"    ------T2: Done processing: frame# {frame_num}")
-                
-                # Make predictions every 20 frames
-                if len(module_result) == 20:
-                    RBP = infer(module_result)
-                    # RBP_val = RBP
-                    module_result = []
-                    # print(f"                        >>>T2: RBP inference done.<<<")
-
-                # FPS Manual Calculation
-                fps_end_time = time.perf_counter()
-                time_diff = fps_end_time - fps_start_time
-                if time_diff == 0:
-                    manual_fps = 0.0
-                else:
-                    manual_fps = (skip / time_diff)
-
-                with open(csv_file, 'a', newline='') as csvfile:
-                            csv_writer = csv.writer(csvfile)
-                            csv_writer.writerow([filename, frame_num, manual_fps])
-                fps_start_time = time.perf_counter()
-                
-            if display_vid:          
-                #Video annotation
-                annotated_frame = annotate_video(frame, RBP)
-
-                # print(f"    ------T2: Displaying annotated frame #{frame_num}")
-                cv.imshow(WIN_NAME, annotated_frame)
-                key = cv.waitKey(1)
-                if key == 27:
-                    #print("Terminating thread2")
-                    thread_interrupt = True
-                    break
-                elif key == ord("Q") or key == ord("q"):
-                    persist = 0
-                    #print(f"Q pressed. Persist:{persist}")
-
-        except queue.Empty:
-            if capture_thread_done:
-                process_thread_done = True
-                print("    ------T2: EMPTY BUFFER. NOT ENOUGH FRAMES FOR PROCESSING.------")
-                break
-            else:
-                continue
-
-    if display_vid:
-        cv.destroyAllWindows()
-
-    process_thread_done = True
-
-    # if thread_interrupt:
-    #     print(">>>>>T2: Keyboard Interrupt. Thread terminating.<<<<<")    
-    # else:
-    #     print("    ------T2: PROCESS_FRAME THREAD STOP.------")
-
-
-def process_video_thread(source, filename):
-    global frame_queue, capture_thread_done, process_thread_done, thread_interrupt
-    global persist
-    try:
-        capture_thread = threading.Thread(target=capture_frames, args=(source,))
-        process_thread = threading.Thread(target=process_frames, args=(filename,))
-
-        print("---------------------------------")
-        print(f"Process_video: Start processing {filename}")
-        print("Starting threads. CTRL+C to terminate threads.")
-        capture_thread.start()
-        process_thread.start()
-
-        while not thread_interrupt:
-            if process_thread_done:
-                break
-            time.sleep(0.5)
-
-    except KeyboardInterrupt:
-        print(">>>>>Process_video: Keyboard interrupt. Stopping threads<<<<<")
-        thread_interrupt = True
-
-
-    capture_thread.join()
-    process_thread.join()
-    print("--------------------------------")
-    print("Process_video: All threads done.")
-
-    # Clearing global variables
-    with frame_queue.mutex:
-        frame_queue.queue.clear()
-    
-    #Checking if queue is indeed cleared
-    if frame_queue.empty():
-        print("Frame queue is empty.")
-    
-    capture_thread_done = False
-    process_thread_done = False
-    thread_interrupt = False
-    persist = 0
-
-def process_video_no_thread(source, filename):
+def process_video(source, filename):
     """Performs real-time object detection and tracking on a video."""
 
     # Global variables 
@@ -889,34 +636,94 @@ def process_video_no_thread(source, filename):
                 # Make predictions every 20 frames
                 if len(module_result) == 20:
                     RBP = infer(module_result)
+                    # Log module results
+                    with open(csv_file_module_result, 'a', newline='') as csvfile:
+                                csv_writer = csv.writer(csvfile)
+                                csv_writer.writerow([filename, frame_num, output, online_boxes, module_result, RBP])
+                    module_result.clear()
                 
             elif not detections:
                 print("No detections found!")
 
             # FPS Manual Calculation
-            fps_end_time = time.perf_counter()
-            time_diff = fps_end_time - fps_start_time
-            if time_diff == 0:
-                manual_fps = 0.0
-            else:
-                manual_fps = (skip / time_diff)
+            if fps_log:
+                fps_end_time = time.perf_counter()
+                time_diff = fps_end_time - fps_start_time
+                if time_diff == 0:
+                    manual_fps = 0.0
+                else:
+                    manual_fps = (skip / time_diff)
 
-            with open(csv_file, 'a', newline='') as csvfile:
-                        csv_writer = csv.writer(csvfile)
-                        csv_writer.writerow([filename, frame_num, manual_fps])
-            fps_start_time = time.perf_counter()
+                with open(csv_file, 'a', newline='') as csvfile:
+                            csv_writer = csv.writer(csvfile)
+                            csv_writer.writerow([filename, frame_num, manual_fps])
+
+                fps_start_time = time.perf_counter()
 
         if display_vid:
-            #Video annotation
-            annotated_frame = annotate_video(frame, RBP)
-            
-            cv.imshow(WIN_NAME, annotated_frame)
-            key = cv.waitKey(1)
-            if key == 27:
-                break
-            elif key == ord("Q") or key == ord("q"):
-                persist = 0
-                
+                if annotate:
+                    frame = annotate_video(frame, RBP)
+                cv.imshow(WIN_NAME, frame)
+
+    cap.release()
+    if display_vid:
+        cv.destroyAllWindows()
+
+def reset_persist():
+    """Function to reset the persist variable"""
+    global persist
+    if persist == 1:
+        persist = 0
+        print("Persist reset to 0")
+
+def set_persist(value, delay):
+    """Function to set persist and start the timer"""
+    global persist
+    persist = value
+    if value == 1:
+        print("Persist set to 1")
+        timer = threading.Timer(delay, reset_persist)
+        timer.start()
+
+def annotate_video(frame, RBP):
+    global RBP_threshold, RBP_info
+    global frame_width, frame_height
+    global font, font_scale, thickness, position, x_text, y_text, size_text
+    global x_rect, y_rect, width_rect, height_rect
+    global warning_text, warning_font_scale, warning_font_thickness, warning_font_color, bg_color
+    global w_text_size, w_text_x, w_text_y, w_rect_x, w_rect_y, w_width_rect, w_height_rect
+    global persist
+
+    frame = cv.resize(frame, (frame_width, frame_height))
+    
+    # Display RBP
+    RBP_text = RBP_info.format(RBP)
+
+    if RBP > RBP_threshold:
+        if args.input == 'video':
+            persist = 1                 # Set persist to 1 (for the duration of the vid)
+        else:
+            set_persist(1, 3)           # Set persist to 1 and reset it after 3 seconds
+        text_color = (0, 0, 128)        # Red color
+    else:
+        text_color = (0, 128, 0)        # Green color
+
+    # Draw white background rectangle
+    cv.rectangle(frame, (x_rect, y_rect), (x_rect + width_rect, y_rect + height_rect), (255, 255, 255), -1)
+    
+    # Add text on top of the rectangle
+    cv.putText(frame, RBP_text, (x_text, y_text), font, font_scale, text_color, thickness, cv.LINE_AA)
+
+    # WARNING SIGN
+    if persist:
+        # Draw the red background rectangle
+        cv.rectangle(frame, (w_rect_x, w_rect_y), (w_rect_x + w_width_rect, w_rect_y + w_height_rect), bg_color, -1)
+
+        # Add the warning text
+        cv.putText(frame, warning_text, (w_text_x, w_text_y), font, warning_font_scale, warning_font_color, warning_font_thickness)
+   
+    return frame
+
 if __name__ == "__main__":
 
     #---------------ARGS---------------#
@@ -951,47 +758,6 @@ if __name__ == "__main__":
     max_age = args.max_age
     class_names = ["high", "low", "med", "none"]
     
-    #---------------RBP Thresholds---------------#
-
-    skip = int(args.skip_frames)
-
-    if skip == 1:
-        RBP_threshold = 0.514
-        f1 = 0.7368
-    elif skip == 2:
-        RBP_threshold = 0.492
-        f1 = 0.7234
-    elif skip == 3:
-        RBP_threshold = 0.503    
-        f1 = 0.7317
-    elif skip == 4:
-        RBP_threshold = 0.459
-        f1 = 0.6957
-    elif skip == 5:
-        RBP_threshold = 0.478
-        f1 = 0.7273
-    elif skip == 6:
-        f1 = 0.75
-        RBP_threshold = 0.409
-
-    logger.info("RBP Threshold: {}".format(RBP_threshold))
-
-    #---------------Inference LSTM Model Loading and Feature Scaling---------------#
-    n_features = 6
-    sequence_length = 20
-
-    # Create an instance of the LSTM model
-    lstm_model = LSTMModel(n_features, hidden_size=64)
-
-    # Load the saved weights
-    lstm_model_path = f'./inference/LSTM_v2/conf_0.481/lstm_models/lstm_model_skip{skip}_f1={f1}_th={RBP_threshold:.3f}.pt'
-    lstm_model.load_state_dict(torch.load(lstm_model_path))
-    print(f"Loaded LSTM model = lstm_model_skip{skip}_f1={f1}_th={RBP_threshold:.3f}.pt")
-    lstm_model.eval()  # Set the model to evaluation mode
-
-    with open(f'./inference/LSTM_v2/conf_0.481/scaler/scaler_skip{skip}.pkl','rb') as file:
-        scaler = pickle.load(file)   
-
     #--------------- Source---------------#
     if args.input == "video":
         source = "./integration/input-vid"
@@ -1007,7 +773,37 @@ if __name__ == "__main__":
     #---------------Display window properties---------------#
 
     display_vid = args.no_display
+    annotate = args.no_annotate
+    skip = int(args.skip_frames)
+
     RBP_info = ("RBP: {:.2f}")
+
+    if skip == 1:
+        RBP_threshold = 0.503
+        with open('./inference/LSTM_v2/skipping_analysis/scaler/scaler_skip1.pkl','rb') as file:
+            scaler = pickle.load(file)
+    elif skip == 2:
+        RBP_threshold = 0.484
+        with open('./inference/LSTM_v2/skipping_analysis/scaler/scaler_skip2.pkl','rb') as file:
+            scaler = pickle.load(file)
+    elif skip == 3:
+        RBP_threshold = 0.484
+        with open('./inference/LSTM_v2/skipping_analysis/scaler/scaler_skip3.pkl','rb') as file:
+            scaler = pickle.load(file)
+    elif skip == 4:
+        RBP_threshold = 0.507
+        with open('./inference/LSTM_v2/skipping_analysis/scaler/scaler_skip4.pkl','rb') as file:
+            scaler = pickle.load(file)
+    elif skip == 5:
+        RBP_threshold = 0.500
+        with open('./inference/LSTM_v2/skipping_analysis/scaler/scaler_skip5.pkl','rb') as file:
+            scaler = pickle.load(file)
+    elif skip == 6:
+        RBP_threshold = 0.370
+        with open('./inference/LSTM_v2/skipping_analysis/scaler/scaler_skip6.pkl','rb') as file:
+            scaler = pickle.load(file) 
+
+    logger.info("RBP Threshold: {}".format(RBP_threshold))
 
     persist = 0
     font = cv.FONT_HERSHEY_SIMPLEX
@@ -1054,9 +850,8 @@ if __name__ == "__main__":
     w_width_rect = w_text_size[0] + 10
     w_height_rect = w_text_size[1] + 10    
     
-    
     #---------------Performance Profiling---------------#
-    
+
     # Peformance profiling
     profiling_folder = './trt_integration/profiling'  # Define the profiling folder
 
@@ -1064,66 +859,84 @@ if __name__ == "__main__":
     if not os.path.exists(profiling_folder):
         os.makedirs(profiling_folder)
 
-    # CSV file to log fps
-    csv_file = os.path.join(profiling_folder, 'fps_log.csv')
-    with open(csv_file, 'w', newline='') as csvfile:
-        csv_writer = csv.writer(csvfile)
-        csv_writer.writerow(['filename', 'frame_num', 'fps'])
-
+    #---------------Log Module Result---------------#
+        
     # CSV file to log module result
     csv_file_module_result = os.path.join(profiling_folder, 'module_result_trt.csv')
     with open(csv_file_module_result, 'w', newline='') as csvfile:
         csv_writer = csv.writer(csvfile)
         csv_writer.writerow(['filename', 'frame_num', 'boxes', 'online_boxes', 'module_result', 'RBP'])
 
-    #---------------Threading Variables---------------#
-    capture_thread_done = False
-    process_thread_done = False
-    thread_interrupt = False
-    frame_queue = queue.Queue(maxsize=1000)  # Buffer size
-    no_thread = args.no_thread
+    #---------------Log FPS---------------#
+    fps_log = args.no_fps_log
 
-    #---------------MAIN PROCESSING---------------#
+    if fps_log:
+        # CSV file to log fps
+        csv_file = os.path.join(profiling_folder, 'fps_log.csv')
+        with open(csv_file, 'w', newline='') as csvfile:
+            csv_writer = csv.writer(csvfile)
+            csv_writer.writerow(['filename', 'frame_num', 'fps'])
     
-    try:
+    #---------------Processing/Profiling---------------#
+
+    profile_code = args.no_profile 
+
+    # No Profiling
+    if not profile_code:
+        if isinstance(source, int):
+            WIN_NAME = "RBP: Camera Feed"
+            process_video(source, 'camera')
+            
+        elif isinstance(source, str):
+            #List of all video files in the folder_path
+            video_files = os.listdir(source)                    
+            
+            for video_file in video_files:
+                if video_file.endswith('.mp4'):
+                    WIN_NAME = f"RBP: {video_file}"
+                    video_path = os.path.join(source, video_file)
+                    process_video(video_path, video_file)
+                    persist = 0
+
+    # With Profiling
+    else:
         if isinstance(source, int):
             try:
                 with cProfile.Profile() as pr:
                     WIN_NAME = "RBP: Camera Feed"
-                    process_video(source, 'Camera')
+                    process_video(source, 'camera')
                 stats = pstats.Stats(pr)
                 stats.sort_stats(pstats.SortKey.TIME)
-                # Save the profiling stats in the profiling folder
-                profile_filename = os.path.join(profiling_folder, f"profiling_cam-thread-skip{skip}.prof")
+                #stats.print_stats()
+                profile_filename = os.path.join(profiling_folder, f"profiling_total.prof")
                 stats.dump_stats(filename=profile_filename)
-                    
+                
             except Exception as e:
                 print(f"Profiling error: {e}")
-                    
+                
         elif isinstance(source, str):
             #List of all video files in the folder_path
             video_files = os.listdir(source)
+
             try:
                 with cProfile.Profile() as pr:
                     for video_file in video_files:
                         if video_file.endswith('.mp4'): 
                             WIN_NAME = f"RBP: {video_file}"
                             video_path = os.path.join(source, video_file)
-                            if no_thread:
-                                process_video_no_thread(video_path, video_file)
-                            else:
-                                process_video_thread(video_path, video_file)
+                            process_video(video_path, video_file)
+                            persist = 0
                         else:
                             print("Invalid source.")
                             sys.exit()
+
                 stats = pstats.Stats(pr)
                 stats.sort_stats(pstats.SortKey.TIME)
+
                 # Save the profiling stats in the profiling folder
-                profile_filename = os.path.join(profiling_folder, f"profiling_vid-thread-skip{skip}.prof")
+                # stats.print_stats()
+                profile_filename = os.path.join(profiling_folder, f"profiling_total.prof")
                 stats.dump_stats(filename=profile_filename)
 
             except Exception as e:
                 print(f"Profiling error: {e}")
-    finally:
-        # destroy the instance
-        model.destroy()
