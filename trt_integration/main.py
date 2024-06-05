@@ -7,8 +7,9 @@ import pstats
 import argparse
 import random
 import ctypes
-import time
 import pickle
+import time
+from datetime import datetime
 from argparse import ArgumentParser
 from loguru import logger
 
@@ -447,11 +448,10 @@ def calculate_overlap(box1, box2):
     
     return overlap
 
-def loitering_module(boxes, track_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age):
+def loitering_module(frame, boxes, track_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age):
     """
     Updates dwell time of detected objects across frames.
     Args:
-        frame: used for annotating the video with the labeled detections
         boxes, track_ids, clss, names: results from YOLO model
         missed_detect: dictionary {Key: track ID, Value: True/False}. False value = not absent in the frame
         misses_cnt: dictionary {Key: track ID, Value: no. of consecutive missed detections}
@@ -465,7 +465,7 @@ def loitering_module(boxes, track_ids, clss, names, missed_detect, misses_cnt, d
         std_val: standard deviation of dwell times
 
     """
-    global save_vid, display_vid
+    global display_vid
     global class_names
 
     for box, track_id, cls in zip(boxes, track_ids, clss):
@@ -474,16 +474,15 @@ def loitering_module(boxes, track_ids, clss, names, missed_detect, misses_cnt, d
         dwell_time[track_id] = dwell_time.get(track_id, 0) + 1 #Increment its dwell time
         misses_cnt[track_id] = 0    #Reset misses_cnt to 0
         
-        #Annotate video
-        """
-        if save_vid or display_vid:
+        # Annotate video
+        if display_vid:
             x1, y1, x2, y2 = box
             cls_name = class_names[int(cls)]
-            xywh = [(x1 - x2 / 2), (y1 - y2 / 2), (x1 + x2 / 2), (y1 + y2 / 2)]
+            xyxy = [x1,y1,x2,y2]
+            # xywh = [(x1 - x2 / 2), (y1 - y2 / 2), (x1 + x2 / 2), (y1 + y2 / 2)]
             label = "#{}:{}".format(track_id, dwell_time[track_id])
             annotator = Annotator(frame, line_width=1, example=names)
-            annotator.box_label(xywh, label=label, color=colors(int(cls), True), txt_color=(255, 255, 255))
-        """
+            annotator.box_label(xyxy, label=label, color=colors(int(cls), True), txt_color=(255, 255, 255))
 
     # Check number of missed detections of each object
     if missed_detect:
@@ -684,7 +683,9 @@ def process_frames(filename):
                 # Make predictions every 20 frames
                 if len(module_result) == 20:
                     RBP = infer(module_result)
-                    # RBP_val = RBP
+                if RBP > RBP_threshold:
+                    warning_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    logger.info("Robbery warning at: {}".format(warning_time))
                     module_result = []
                     # print(f"                        >>>T2: RBP inference done.<<<")
 
@@ -812,9 +813,8 @@ def process_video_no_thread(source, filename):
     module_result = []  #stores results from the 3 modules for 20 frames
     RBP = 0
 
-    if fps_log:
-        manual_fps = 0.0 
-        fps_start_time = time.perf_counter()
+    manual_fps = 0.0 
+    fps_start_time = time.perf_counter()
 
     # Iterate through each frame of the video
     while cv.waitKey(1) != 27: #ESC key
@@ -889,6 +889,9 @@ def process_video_no_thread(source, filename):
                 # Make predictions every 20 frames
                 if len(module_result) == 20:
                     RBP = infer(module_result)
+                    if RBP > RBP_threshold:
+                        warning_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        logger.info("Robbery warning at: {}".format(warning_time))
                 
             elif not detections:
                 print("No detections found!")
@@ -956,23 +959,17 @@ if __name__ == "__main__":
     skip = int(args.skip_frames)
 
     if skip == 1:
-        RBP_threshold = 0.514
         f1 = 0.7368
-    elif skip == 2:
-        RBP_threshold = 0.492
-        f1 = 0.7234
+        RBP_threshold = 0.514
     elif skip == 3:
-        RBP_threshold = 0.503    
-        f1 = 0.7317
-    elif skip == 4:
-        RBP_threshold = 0.459
-        f1 = 0.6957
-    elif skip == 5:
-        RBP_threshold = 0.478
-        f1 = 0.7273
+        f1 = 0.7556
+        RBP_threshold = 0.481
     elif skip == 6:
-        f1 = 0.75
-        RBP_threshold = 0.409
+        f1 = 0.717
+        RBP_threshold = 0.426
+    elif skip == 8:
+        f1 = 0.7442
+        RBP_threshold = 0.473
 
     logger.info("RBP Threshold: {}".format(RBP_threshold))
 
@@ -984,12 +981,12 @@ if __name__ == "__main__":
     lstm_model = LSTMModel(n_features, hidden_size=64)
 
     # Load the saved weights
-    lstm_model_path = f'./inference/LSTM_v2/conf_0.481/lstm_models/lstm_model_skip{skip}_f1={f1}_th={RBP_threshold:.3f}.pt'
+    lstm_model_path = f'./inference/LSTM_v2/conf_0.481/_jetson/lstm_models_jetson/lstm_model_skip{skip}_f1={f1}_th={RBP_threshold:.3f}_jetson.pt'
     lstm_model.load_state_dict(torch.load(lstm_model_path))
-    print(f"Loaded LSTM model = lstm_model_skip{skip}_f1={f1}_th={RBP_threshold:.3f}.pt")
+    print(f"Loaded LSTM model = lstm_model_skip{skip}_f1={f1}_th={RBP_threshold:.3f}_jetson.pt")
     lstm_model.eval()  # Set the model to evaluation mode
 
-    with open(f'./inference/LSTM_v2/conf_0.481/scaler/scaler_skip{skip}.pkl','rb') as file:
+    with open(f'./inference/LSTM_v2/conf_0.481/_jetson/scaler_jetson/scaler_skip{skip}_jetson.pkl','rb') as file:
         scaler = pickle.load(file)   
 
     #--------------- Source---------------#
@@ -1090,7 +1087,10 @@ if __name__ == "__main__":
             try:
                 with cProfile.Profile() as pr:
                     WIN_NAME = "RBP: Camera Feed"
-                    process_video(source, 'Camera')
+                    if no_thread:
+                        process_video_no_thread(source, 'Camera')
+                    else:
+                        process_video_thread(source, 'Camera')
                 stats = pstats.Stats(pr)
                 stats.sort_stats(pstats.SortKey.TIME)
                 # Save the profiling stats in the profiling folder
