@@ -669,8 +669,8 @@ if __name__ == "__main__":
         f1 = 0.7234
         RBP_threshold = 0.492
     elif skip == 3:
-        f1 = 0.7317
-        RBP_threshold = 0.503      
+        f1 = 0.7556
+        RBP_threshold = 0.481      
     elif skip == 4:
         f1 = 0.6957
         RBP_threshold = 0.459
@@ -689,12 +689,12 @@ if __name__ == "__main__":
     lstm_model = LSTMModel(n_features, hidden_size=64)
 
     # Load the saved weights
-    lstm_model_path = f'./inference/LSTM_v2/conf_0.481/lstm_models/lstm_model_skip{skip}_f1={f1}_th={RBP_threshold:.3f}.pt'
+    lstm_model_path = f'./inference/LSTM_v2/conf_0.481/_jetson/lstm_models_jetson/lstm_model_skip{skip}_f1={f1}_th={RBP_threshold:.3f}_jetson.pt'
     lstm_model.load_state_dict(torch.load(lstm_model_path))
-    print(f"Loaded LSTM model = lstm_model_skip{skip}_f1={f1}_th={RBP_threshold:.3f}.pt")
+    print(f"Loaded LSTM model = lstm_model_skip{skip}_f1={f1}_th={RBP_threshold:.3f}_jetson.pt")
     lstm_model.eval()  # Set the model to evaluation mode
 
-    with open(f'./inference/LSTM_v2/conf_0.481/scaler/scaler_skip{skip}.pkl','rb') as file:
+    with open(f'./inference/LSTM_v2/conf_0.481/_jetson/scaler_jetson/scaler_skip{skip}_jetson.pkl','rb') as file:
         scaler = pickle.load(file)  
 
     #---------------Source---------------#
@@ -811,8 +811,12 @@ if __name__ == "__main__":
                         
                         # process_video(video_path, video_file)
                         if no_thread:
+                            start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            print(f"Video started at: {start_time}")
                             process_video_no_thread(video_path, video_file)
                         else:
+                            start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            print(f"Video started at: {start_time}")
                             process_video_thread(video_path, video_file)
                     else:
                         print("Invalid source.")
