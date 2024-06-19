@@ -50,11 +50,23 @@ def parse_args():
         action="store_false",
         help="Disables playing of video while processing. Default = True.",
     )
+    # Profiling
+    parser.add_argument(
+        "--no-profile",
+        action="store_false",
+        help="Disables profiling of video. Default = True.",
+    )
     # Threading
     parser.add_argument(
         "--no-thread",
         action="store_true",
         help="Disables multi-threading (skipping only).",
+    )
+    # Threading
+    parser.add_argument(
+        "--no-latency-test",
+        action="store_false",
+        help="Disables latency tests",
     )
     # Skip frames
     parser.add_argument(
@@ -600,7 +612,7 @@ def process_frames(filename):
     global frame_queue, capture_thread_done, process_thread_done, thread_interrupt
     global frame_width, frame_height, capture_width, capture_height
     global WIN_NAME
-    global display_vid
+    global display_vid, warning_done, vid_start_time, latency_test
     
     #Loitering variables
     missed_detect = {}
@@ -610,6 +622,8 @@ def process_frames(filename):
     #Inference variables
     module_result = []  #stores results from the 3 modules for 20 frames
     RBP = 0
+
+    persist = 0
 
     if display_vid:
         cv.namedWindow(WIN_NAME, cv.WINDOW_AUTOSIZE)
@@ -626,7 +640,7 @@ def process_frames(filename):
             
             # YOLO Inference with TensorRT
             detections = model.Inference(frame)
-            logger.info("Detections: {}".format(detections))
+            # logger.info("Detections: {}".format(detections))
 
             # If detection results is not empty
             if detections:
@@ -668,6 +682,10 @@ def process_frames(filename):
                         online_ids.append(tid)
                 online_boxes = torch.tensor(online_boxes, dtype=torch.float32)
 
+            # else:
+            #     online_boxes, online_ids, clss, names = [[] for _ in range(4)]
+            #     boxes = []
+                
                 #Feed detection results to the modules
                 crowd_density = crowd_density_module(online_boxes)
                 concealment_counts = concealment_module(clss)
@@ -679,43 +697,58 @@ def process_frames(filename):
                     concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
 
                 # print(f"    ------T2: Done processing: frame# {frame_num}")
-                
+                    
                 # Make predictions every 20 frames
                 if len(module_result) == 20:
                     RBP = infer(module_result)
-                if RBP > RBP_threshold:
-                    warning_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    logger.info("Robbery warning at: {}".format(warning_time))
+                    if latency_test:
+                        if RBP > RBP_threshold and not warning_done:
+                                warning_time = datetime.now()
+                                logger.info("Robbery warning at: {}".format(warning_time))          
+                                diff_time = warning_time - vid_start_time
+                                logger.info("Robbery was predicted in the video at: {}".format(diff_time))
+                                warning_done = 1
                     module_result = []
-                    # print(f"                        >>>T2: RBP inference done.<<<")
+            # print(f"                        >>>T2: RBP inference done.<<<")
 
-                # FPS Manual Calculation
-                fps_end_time = time.perf_counter()
-                time_diff = fps_end_time - fps_start_time
-                if time_diff == 0:
-                    manual_fps = 0.0
-                else:
-                    manual_fps = (skip / time_diff)
+            # FPS Manual Calculation
+            fps_end_time = time.perf_counter()
+            time_diff = fps_end_time - fps_start_time
+            if time_diff == 0:
+                manual_fps = 0.0
+            else:
+                manual_fps = (skip / time_diff)
 
-                with open(csv_file, 'a', newline='') as csvfile:
-                            csv_writer = csv.writer(csvfile)
-                            csv_writer.writerow([filename, frame_num, manual_fps])
-                fps_start_time = time.perf_counter()
-                
+            with open(csv_file, 'a', newline='') as csvfile:
+                        csv_writer = csv.writer(csvfile)
+                        csv_writer.writerow([filename, frame_num, manual_fps])
+            fps_start_time = time.perf_counter()
+
+            key = cv.waitKey(1)
+
             if display_vid:          
                 #Video annotation
                 annotated_frame = annotate_video(frame, RBP)
 
                 # print(f"    ------T2: Displaying annotated frame #{frame_num}")
                 cv.imshow(WIN_NAME, annotated_frame)
-                key = cv.waitKey(1)
                 if key == 27:
                     #print("Terminating thread2")
                     thread_interrupt = True
+                    persist = warning_done = 0
                     break
                 elif key == ord("Q") or key == ord("q"):
-                    persist = 0
-                    #print(f"Q pressed. Persist:{persist}")
+                    persist = warning_done = 0
+                    print(f"Q pressed. Persist:{persist}")
+            
+            if key == ord("R") or key == ord("r"):
+                persist = warning_done = 0
+                print(f"R pressed. Resetting process_video_thread")
+                thread_interrupt = True
+            elif key == ord("T") or key == ord("t"):
+                vid_start_time = datetime.now()
+                logger.info("T pressed. Video Start Time at: {}".format(vid_start_time))
+                # print(f"T pressed. Recording video start time at {vid_start_time}")
 
         except queue.Empty:
             if capture_thread_done:
@@ -784,7 +817,7 @@ def process_video_no_thread(source, filename):
     global model, tracker, max_age
     global frame_width, frame_height, capture_width, capture_height
     global font_scale, thickness, position, x_text, y_text, WIN_NAME
-    global display_vid, annotate, skip
+    global display_vid, skip, warning_done, vid_start_time, latency_test
     
     # Capture source
     if args.input == 'video':    
@@ -802,7 +835,8 @@ def process_video_no_thread(source, filename):
 
     #Frame variables
     frame_num = 0
-
+    persist = 0
+    
     # #Loitering variables
     missed_detect = {} # Dictionary that contains all the tracked object, key:id, value: True/False (false - present in the frame)
     dwell_time = {}
@@ -825,12 +859,14 @@ def process_video_no_thread(source, filename):
             break  
         frame_num += 1
 
+        frame = cv.resize(frame, (frame_width,frame_height))    
+
         # Skip frames
         if frame_num % skip == 0:
-
+            
             # YOLO Inference with TensorRT
-            detections, frame = model.Inference(frame)
-            logger.info("Detections: {}".format(detections))
+            detections = model.Inference(frame)
+            # logger.info("Detections: {}".format(detections))
 
             # If detection results is not empty
             if detections:
@@ -872,29 +908,34 @@ def process_video_no_thread(source, filename):
                         online_ids.append(tid)
                 online_boxes = torch.tensor(online_boxes, dtype=torch.float32)
 
-                #Crowd density module
+            # else:
+            #     online_boxes, online_ids, clss, names = [[] for _ in range(4)]
+            #     boxes = []
+                
+                #Feed detection results to the modules
                 crowd_density = crowd_density_module(online_boxes)
-
-                #Concealment module
                 concealment_counts = concealment_module(clss)
-
-                #Loitering module
-                missed_detect, misses_cnt, dwell_time, loitering = loitering_module(frame, boxes, online_ids, clss, names, missed_detect, misses_cnt, dwell_time, max_age)
+                missed_detect, misses_cnt, dwell_time, loitering = loitering_module(frame, boxes, online_ids, clss, class_names, missed_detect, misses_cnt, dwell_time, max_age)
 
                 module_result.append([frame_num, 
-                        crowd_density, 
-                        loitering, 
-                        concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
+                    crowd_density, 
+                    loitering, 
+                    concealment_counts[3], concealment_counts[1], concealment_counts[2], concealment_counts[0]])
 
+                # print(f"    ------T2: Done processing: frame# {frame_num}")
+                    
                 # Make predictions every 20 frames
                 if len(module_result) == 20:
                     RBP = infer(module_result)
-                    if RBP > RBP_threshold:
-                        warning_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        logger.info("Robbery warning at: {}".format(warning_time))
-                
-            elif not detections:
-                print("No detections found!")
+                    if latency_test:
+                        if RBP > RBP_threshold and not warning_done:
+                                warning_time = datetime.now()
+                                logger.info("Robbery warning at: {}".format(warning_time))          
+                                diff_time = warning_time - vid_start_time
+                                logger.info("Robbery was predicted in the video at: {}".format(diff_time))
+                                warning_done = 1
+                    module_result = []
+                # print(f"                        >>>T2: RBP inference done.<<<")
 
             # FPS Manual Calculation
             fps_end_time = time.perf_counter()
@@ -909,16 +950,30 @@ def process_video_no_thread(source, filename):
                         csv_writer.writerow([filename, frame_num, manual_fps])
             fps_start_time = time.perf_counter()
 
-        if display_vid:
-            #Video annotation
-            annotated_frame = annotate_video(frame, RBP)
-            
-            cv.imshow(WIN_NAME, annotated_frame)
             key = cv.waitKey(1)
-            if key == 27:
+            if display_vid:
+                #Video annotation
+                annotated_frame = annotate_video(frame, RBP)
+                cv.imshow(WIN_NAME, annotated_frame)
+                if key == 27: #ESC
+                    break
+                elif key == ord("Q") or key == ord("q"):
+                    persist = warning_done = 0
+                    print(f"Q pressed. Persist:{persist}")
+
+            if key == ord("R") or key == ord("r"):
+                persist = warning_done = 0
+                print(f"R pressed. Resetting process_video_no_thread")
                 break
-            elif key == ord("Q") or key == ord("q"):
-                persist = 0
+
+            elif key == ord("T") or key == ord("t"):
+                vid_start_time = datetime.now()
+                logger.info("T pressed. Video Start Time at: {}".format(vid_start_time))
+                # print(f"T pressed. Recording video start time at {vid_start_time}")
+
+    cap.release()
+    if display_vid:
+        cv.destroyAllWindows()
                 
 if __name__ == "__main__":
 
@@ -957,19 +1012,53 @@ if __name__ == "__main__":
     #---------------RBP Thresholds---------------#
 
     skip = int(args.skip_frames)
-
+    
     if skip == 1:
-        f1 = 0.7368
-        RBP_threshold = 0.514
+        f1 = 0.7234
+        RBP_threshold = 0.488
+    elif skip == 2:
+        f1 = 0.72
+        RBP_threshold = 0.503   
     elif skip == 3:
         f1 = 0.7556
         RBP_threshold = 0.481
+    elif skip == 4:
+        f1 = 0.7451
+        RBP_threshold = 0.465
+    elif skip == 5:
+        f1 = 0.7143
+        RBP_threshold = 0.467
     elif skip == 6:
         f1 = 0.717
         RBP_threshold = 0.426
+    elif skip == 7:
+        f1 = 0.7059
+        RBP_threshold = 0.450
     elif skip == 8:
         f1 = 0.7442
         RBP_threshold = 0.473
+    elif skip == 9:
+        f1 = 0.7234
+        RBP_threshold = 0.424
+
+    # if skip == 1:
+    #     f1 = 0.7368
+    #     RBP_threshold = 0.514
+    # elif skip == 2:
+    #     f1 = 0.7234
+    #     RBP_threshold = 0.492
+    # elif skip == 3:
+    #     f1 = 0.7556
+    #     RBP_threshold = 0.481      
+    # elif skip == 4:
+    #     f1 = 0.6957
+    #     RBP_threshold = 0.459
+    # elif skip == 5:
+    #     f1 = 0.7273
+    #     RBP_threshold = 0.478
+    # elif skip == 6:
+    #     f1 = 0.75
+    #     RBP_threshold = 0.409
 
     logger.info("RBP Threshold: {}".format(RBP_threshold))
 
@@ -982,16 +1071,19 @@ if __name__ == "__main__":
 
     # Load the saved weights
     lstm_model_path = f'./inference/LSTM_v2/conf_0.481/_jetson/lstm_models_jetson/lstm_model_skip{skip}_f1={f1}_th={RBP_threshold:.3f}_jetson.pt'
+    # lstm_model_path = f'./inference/LSTM_v2/conf_0.481/lstm_models/lstm_model_skip{skip}_f1={f1}_th={RBP_threshold:.3f}.pt'
+    
     lstm_model.load_state_dict(torch.load(lstm_model_path))
-    print(f"Loaded LSTM model = lstm_model_skip{skip}_f1={f1}_th={RBP_threshold:.3f}_jetson.pt")
+    print(f"Loaded LSTM model = lstm_model_skip{skip}_f1={f1}_th={RBP_threshold:.3f}.pt")
     lstm_model.eval()  # Set the model to evaluation mode
 
+    # with open(f'./inference/LSTM_v2/conf_0.481/scaler/scaler_skip{skip}.pkl','rb') as file:
     with open(f'./inference/LSTM_v2/conf_0.481/_jetson/scaler_jetson/scaler_skip{skip}_jetson.pkl','rb') as file:
         scaler = pickle.load(file)   
 
     #--------------- Source---------------#
     if args.input == "video":
-        source = "./integration/input-vid"
+        source = "./trt_integration/input-vid"
     else:
         source = 0
 
@@ -1039,6 +1131,7 @@ if __name__ == "__main__":
     warning_font_thickness = thickness*2
     warning_font_color = (255, 255, 255)  # White
     bg_color = (0, 0, 255)  # Red
+    warning_done = 0
 
     # Calculate the text size and position
     w_text_size = cv.getTextSize(warning_text, font, warning_font_scale, warning_font_thickness)[0]
@@ -1062,16 +1155,10 @@ if __name__ == "__main__":
         os.makedirs(profiling_folder)
 
     # CSV file to log fps
-    csv_file = os.path.join(profiling_folder, 'fps_log.csv')
+    csv_file = os.path.join(profiling_folder, f"fps_log_trt_skip{skip}.csv")
     with open(csv_file, 'w', newline='') as csvfile:
         csv_writer = csv.writer(csvfile)
         csv_writer.writerow(['filename', 'frame_num', 'fps'])
-
-    # CSV file to log module result
-    csv_file_module_result = os.path.join(profiling_folder, 'module_result_trt.csv')
-    with open(csv_file_module_result, 'w', newline='') as csvfile:
-        csv_writer = csv.writer(csvfile)
-        csv_writer.writerow(['filename', 'frame_num', 'boxes', 'online_boxes', 'module_result', 'RBP'])
 
     #---------------Threading Variables---------------#
     capture_thread_done = False
@@ -1081,49 +1168,89 @@ if __name__ == "__main__":
     no_thread = args.no_thread
 
     #---------------MAIN PROCESSING---------------#
+    profile = args.no_profile
+    latency_test = args.no_latency_test
     
     try:
-        if isinstance(source, int):
-            try:
-                with cProfile.Profile() as pr:
-                    WIN_NAME = "RBP: Camera Feed"
-                    if no_thread:
-                        process_video_no_thread(source, 'Camera')
-                    else:
-                        process_video_thread(source, 'Camera')
-                stats = pstats.Stats(pr)
-                stats.sort_stats(pstats.SortKey.TIME)
-                # Save the profiling stats in the profiling folder
-                profile_filename = os.path.join(profiling_folder, f"profiling_cam-thread-skip{skip}.prof")
-                stats.dump_stats(filename=profile_filename)
-                    
-            except Exception as e:
-                print(f"Profiling error: {e}")
-                    
-        elif isinstance(source, str):
-            #List of all video files in the folder_path
-            video_files = os.listdir(source)
-            try:
-                with cProfile.Profile() as pr:
-                    for video_file in video_files:
-                        if video_file.endswith('.mp4'): 
-                            WIN_NAME = f"RBP: {video_file}"
-                            video_path = os.path.join(source, video_file)
-                            if no_thread:
-                                process_video_no_thread(video_path, video_file)
-                            else:
-                                process_video_thread(video_path, video_file)
-                        else:
-                            print("Invalid source.")
-                            sys.exit()
-                stats = pstats.Stats(pr)
-                stats.sort_stats(pstats.SortKey.TIME)
-                # Save the profiling stats in the profiling folder
-                profile_filename = os.path.join(profiling_folder, f"profiling_vid-thread-skip{skip}.prof")
-                stats.dump_stats(filename=profile_filename)
 
-            except Exception as e:
-                print(f"Profiling error: {e}")
+        if not profile:
+            if isinstance(source, int):
+                while cv.waitKey(1) != 27: #ESC key
+                    WIN_NAME = "RBP: Camera Feed"
+                    while cv.waitKey(1) != 27:
+                        if no_thread:
+                            process_video_no_thread(source, 'Camera')
+                        else:
+                            process_video_thread(source, 'Camera')
+
+            elif isinstance(source, str):
+                #List of all video files in the folder_path
+                video_files = os.listdir(source)
+                for video_file in video_files:
+                    if video_file.endswith('.mp4'): 
+                        WIN_NAME = f"RBP: {video_file}"
+                        video_path = os.path.join(source, video_file)
+                        if no_thread:
+                            process_video_no_thread(video_path, video_file)
+                        else:
+                            process_video_thread(video_path, video_file)
+                        persist = 0
+                        warning_done = 0
+                    else:
+                        print("Invalid source.")
+                        sys.exit()
+
+        else:
+            if isinstance(source, int):
+                try:
+                    with cProfile.Profile() as pr:
+                        WIN_NAME = "RBP: Camera Feed"
+                        while cv.waitKey(1) != 27: 
+                            if no_thread:
+                                vid_start_time = datetime.now()
+                                warning_done = persist = 0
+                                process_video_no_thread(source, 'Camera')
+                            else:
+                                vid_start_time = datetime.now()
+                                warning_done = persist = 0
+                                process_video_thread(source, 'Camera')
+                    stats = pstats.Stats(pr)
+                    stats.sort_stats(pstats.SortKey.TIME)
+                    # Save the profiling stats in the profiling folder
+                    profile_filename = os.path.join(profiling_folder, f"profiling_trt_cam-thread-skip{skip}.prof")
+                    stats.dump_stats(filename=profile_filename)
+                except Exception as e:
+                    print(f"Profiling error: {e}")
+                        
+            elif isinstance(source, str):
+                #List of all video files in the folder_path
+                video_files = os.listdir(source)
+                try:
+                    with cProfile.Profile() as pr:
+                        for video_file in video_files:
+                            if video_file.endswith('.mp4'): 
+                                WIN_NAME = f"RBP: {video_file}"
+                                video_path = os.path.join(source, video_file)
+                                if no_thread:
+                                    vid_start_time = datetime.now()
+                                    print(f"{video_file} start time: ", vid_start_time)
+                                    process_video_no_thread(video_path, video_file)
+                                else:
+                                    vid_start_time = datetime.now()
+                                    print(f"{video_file} start time: ", vid_start_time)
+                                    process_video_thread(video_path, video_file)
+                                persist = 0
+                                warning_done = 0
+                            else:
+                                print("Invalid source.")
+                                sys.exit()
+                    stats = pstats.Stats(pr)
+                    stats.sort_stats(pstats.SortKey.TIME)
+                    # Save the profiling stats in the profiling folder
+                    profile_filename = os.path.join(profiling_folder, f"profiling_trt_vid-skip{skip}.prof")
+                    stats.dump_stats(filename=profile_filename)
+                except Exception as e:
+                    print(f"Profiling error: {e}")
     finally:
         # destroy the instance
         model.destroy()

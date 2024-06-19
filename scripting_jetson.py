@@ -461,14 +461,18 @@ def vid_processing(folder_path, csv_filename, field_names):
         
 if __name__ == "__main__":
     # skip = 5 # log only every x frames
-    skip = 5
+    skip_list = [17,12]
 
-    #Declaring CSV filename and header fields
-    csv_filename = f"inference/LSTM_v2/conf_0.481/_jetson/training_csv_jetson/train_inf5050_conf0.481_skip{skip}_jetson.csv"
-    field_names = ["video_id","frame_num","crowd_density","loitering","no_concealment","low_concealment","med_concealment","high_concealment","rbp"]
+    for skip in skip_list:
 
-    #Declaring folder path of the videos to be processed
-    folder_path = r"/home/robbers/Downloads/inference_videos"
+        print("Running scripting for skip = ",skip)
+        #Declaring CSV filename and header fields
+        csv_filename = f"inference/LSTM_v2/conf_0.481/_jetson/training_csv_jetson/train_inf5050_conf0.481_skip{skip}_jetson.csv"
+        field_names = ["video_id","frame_num","crowd_density","loitering","no_concealment","low_concealment","med_concealment","high_concealment","rbp"]
 
-    create_csv(csv_filename, field_names)
-    vid_processing(folder_path, csv_filename, field_names)
+        #Declaring folder path of the videos to be processed
+        folder_path = r"/home/robbers/Downloads/inference_videos"
+
+        create_csv(csv_filename, field_names)
+        vid_processing(folder_path, csv_filename, field_names)
+        print("Completed scripting for skip = ",skip)

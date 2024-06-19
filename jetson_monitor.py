@@ -5,7 +5,26 @@ from jtop import jtop, JtopException
 import csv
 import argparse
 import time
+# from datetime import datetime
 
+# def jetson_stats_mod():
+#     stats = {'time': datetime.now(), 'uptime': jtop.uptime}
+#     # CPU
+#     for idx, cpu in enumerate(jtop.cpu['cpu']):
+#         stats["CPU{idx}".format(idx=idx + 1)] = 100 - int(cpu['idle']) if cpu['online'] else 'OFF'
+
+#     # GPU
+#     for idx, gpu in enumerate(jtop.gpu.values()):
+#         gpu_name = 'GPU' if idx == 0 else 'GPU{idx}'.format(idx=idx)
+#         stats[gpu_name] = gpu['status']['load']
+
+#     # MEMORY
+#     stats['used_RAM'] = jtop.memory['RAM']['used']
+#     stats['tot_RAM'] = jtop.memory['RAM']['tot']
+#     # stats['RAM'] = jtop.memory['RAM']['used'] / tot_ram if tot_ram > 0 else 0
+
+    
+    # return stats
     
 
 if __name__ == "__main__":
